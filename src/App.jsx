@@ -8,7 +8,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── XP SYSTEM ────────────────────────────────────────────────
 const LEVELS = [
-  { level: 1, name: "Apprenti",         icon: "🔌", xpMin: 0,    color: "#090c12" },
+  { level: 1, name: "Apprenti",         icon: "🔌", xpMin: 0,    color: "#6b7280" },
   { level: 2, name: "Câbleur",          icon: "🔧", xpMin: 500,  color: "#3d9fff" },
   { level: 3, name: "Électricien",      icon: "⚡", xpMin: 1500, color: "#22d3a0" },
   { level: 4, name: "Chef de chantier", icon: "🏗️", xpMin: 3000, color: "#a78bfa" },
@@ -297,7 +297,7 @@ function Login({onLogin}){
             <input type="password" style={s.input} placeholder="6 caractères minimum" value={password} onChange={e=>setPassword(e.target.value)}/>
           </div>
 
-          {authMode==="inscription"&&(
+          {authMode==="inscription"&&(<>
             <div style={{marginBottom:"0.8rem"}}>
               <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Ta filière</div>
               <select style={s.input} value={filiere} onChange={e=>{setFiliere(e.target.value);setNiveau(["ifca","celec"].includes(e.target.value)?"cap1":"seconde");}}>
@@ -321,7 +321,7 @@ function Login({onLogin}){
                 </>}
               </select>
             </div>
-          )}
+          </>)}
 
           {error&&<div style={{background:"rgba(255,77,109,0.1)",border:"1px solid rgba(255,77,109,0.3)",borderRadius:8,padding:"0.6rem 0.8rem",color:"#ff4d6d",fontSize:"0.82rem",marginBottom:"0.8rem"}}>{error}</div>}
 
