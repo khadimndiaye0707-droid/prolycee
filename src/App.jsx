@@ -185,7 +185,9 @@ function Login({onLogin}){
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
   const [nom,setNom]=useState("");
-  const [classe,setClasse]=useState("elec");
+  const [filiere,setFiliere]=useState("elec");
+  const [niveau,setNiveau]=useState("seconde");
+  const classe = `${filiere}_${niveau}`;
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
 
@@ -286,12 +288,27 @@ function Login({onLogin}){
           </div>
 
           {authMode==="inscription"&&(
+            <div style={{marginBottom:"0.8rem"}}>
+              <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Ta filière</div>
+              <select style={s.input} value={filiere} onChange={e=>{setFiliere(e.target.value);setNiveau(["ifca","celec"].includes(e.target.value)?"cap1":"seconde");}}>
+                <option value="melec">⚡ Bac Pro MELEC</option>
+                <option value="iccer">🔥 Bac Pro ICCER</option>
+                <option value="mfer">❄️ Bac Pro MFEr</option>
+                <option value="ifca">🌡️ CAP IFCA</option>
+                <option value="celec">🔌 CAP CELEC</option>
+              </select>
+            </div>
             <div style={{marginBottom:"1rem"}}>
-              <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Ta classe</div>
-              <select style={s.input} value={classe} onChange={e=>setClasse(e.target.value)}>
-                <option value="elec">⚡ Bac Pro Électricité</option>
-                <option value="cvc">🔥 Bac Pro CVC</option>
-                <option value="mis">🔧 CAP MIS</option>
+              <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Ton niveau</div>
+              <select style={s.input} value={niveau} onChange={e=>setNiveau(e.target.value)}>
+                {["ifca","celec"].includes(filiere)?<>
+                  <option value="cap1">CAP 1ère année</option>
+                  <option value="cap2">CAP 2ème année</option>
+                </>:<>
+                  <option value="seconde">Seconde Pro</option>
+                  <option value="premiere">1ère Bac Pro</option>
+                  <option value="terminale">Terminale Bac Pro</option>
+                </>}
               </select>
             </div>
           )}
@@ -423,18 +440,33 @@ function XPPage({user,onAddXP}){
 // ── DASHBOARD ─────────────────────────────────────────────────
 function Dashboard({user,onAddXP}){
   if(user.role==="eleve"){
-    const seqs=SEQUENCES[user.classe]||[];
+    const seqs=SEQUENCES[user.classe?.split("_")[0]]||[];
     const [open,setOpen]=useState(null);
     const xp=user.xp||0;
     const {current}=getLevelInfo(xp);
-    const labels={elec:"⚡ Bac Pro Électricité",cvc:"🔥 Bac Pro CVC",mis:"🔧 CAP MIS"};
+    const CLASSE_LABELS={
+      melec_seconde:"⚡ MELEC — Seconde Pro",
+      melec_premiere:"⚡ MELEC — 1ère Bac Pro",
+      melec_terminale:"⚡ MELEC — Terminale Bac Pro",
+      iccer_seconde:"🔥 ICCER — Seconde Pro",
+      iccer_premiere:"🔥 ICCER — 1ère Bac Pro",
+      iccer_terminale:"🔥 ICCER — Terminale Bac Pro",
+      mfer_seconde:"❄️ MFEr — Seconde Pro",
+      mfer_premiere:"❄️ MFEr — 1ère Bac Pro",
+      mfer_terminale:"❄️ MFEr — Terminale Bac Pro",
+      ifca_cap1:"🌡️ IFCA — CAP 1ère année",
+      ifca_cap2:"🌡️ IFCA — CAP 2ème année",
+      celec_cap1:"🔌 CELEC — CAP 1ère année",
+      celec_cap2:"🔌 CELEC — CAP 2ème année",
+    };
+    const labels={melec:"⚡ Bac Pro MELEC",iccer:"🔥 Bac Pro ICCER",mfer:"❄️ Bac Pro MFEr",ifca:"🌡️ CAP IFCA",celec:"🔌 CAP CELEC"};
     return <div>
       <div style={{background:"#1c2030",borderRadius:16,padding:"1.5rem",marginBottom:"1.5rem",border:"1px solid rgba(255,255,255,0.07)"}}>
         <div style={{display:"flex",alignItems:"center",gap:"1.5rem",marginBottom:"1rem"}}>
           <div style={{width:64,height:64,borderRadius:16,background:`linear-gradient(135deg,${current.color},${current.color}80)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.8rem",flexShrink:0,boxShadow:`0 0 20px ${current.color}40`}}>{current.icon}</div>
           <div style={{flex:1}}>
             <div style={{fontSize:"1.3rem",fontWeight:900}}>{user.name}</div>
-            <div style={{fontSize:"0.8rem",color:"#6b7280",marginTop:"0.1rem"}}>{labels[user.classe]}</div>
+            <div style={{fontSize:"0.8rem",color:"#6b7280",marginTop:"0.1rem"}}>{CLASSE_LABELS[user.classe]||labels[user.classe?.split("_")[0]]||user.classe}</div>
             <div style={{display:"flex",gap:"0.4rem",marginTop:"0.6rem",flexWrap:"wrap"}}><XPBadge xp={xp} size="lg"/><Badge type="orange">⚡ 5 TP réalisés</Badge></div>
           </div>
           <div style={{textAlign:"right"}}><div style={{fontSize:"2rem",fontWeight:900,color:"#ffd166",lineHeight:1}}>{xp}</div><div style={{fontSize:"0.65rem",color:"#6b7280",textTransform:"uppercase"}}>XP total</div></div>
@@ -481,7 +513,7 @@ function Dashboard({user,onAddXP}){
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:"1rem"}}>
       <Card>
         <SectionTitle>📈 Progression par classe</SectionTitle>
-        {[["⚡ Bac Pro Élec","68","#3d9fff"],["🔥 Bac Pro CVC","52","#ff4d6d"],["🔧 CAP MIS","75","#22d3a0"]].map(([label,val,col])=>(
+        {[["⚡ Bac Pro MELEC","68","#3d9fff"],["🔥 Bac Pro ICCER","52","#ff4d6d"],["❄️ Bac Pro MFEr","61","#22d3a0"],["🌡️ CAP IFCA","75","#a78bfa"],["🔌 CAP CELEC","70","#ffd166"]].map(([label,val,col])=>(
           <div key={label} style={{marginBottom:"0.8rem"}}>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:"0.8rem",marginBottom:"0.2rem"}}><span>{label}</span><span style={{color:col,fontWeight:700}}>{val}%</span></div>
             <Progress value={parseInt(val)} color={col}/>
@@ -571,7 +603,7 @@ function Notes(){
   },[]);
 
   const students=dbProfiles.length>0?dbProfiles:STUDENTS;
-  const filtered=filter==="all"?students:students.filter(st=>st.classe===filter);
+  const filtered=filter==="all"?students:students.filter(st=>(st.classe||"").startsWith(filter));
 
   return <div>
     <div style={{fontSize:"1.4rem",fontWeight:900,textTransform:"uppercase",letterSpacing:1,marginBottom:"0.3rem"}}>Notes & Suivi</div>
@@ -579,7 +611,7 @@ function Notes(){
       {dbProfiles.length>0?`${dbProfiles.length} élèves inscrits en temps réel`:"Données de démonstration"}
     </div>
     <div style={{display:"flex",gap:"0.5rem",marginBottom:"1.2rem",flexWrap:"wrap"}}>
-      {[["all","Tous","#ff6b2b"],["elec","⚡ Élec","#3d9fff"],["cvc","🔥 CVC","#ff4d6d"],["mis","🔧 MIS","#22d3a0"]].map(([f,label,col])=>(
+      {[["all","Tous","#ff6b2b"],["melec","⚡ MELEC","#3d9fff"],["iccer","🔥 ICCER","#ff4d6d"],["mfer","❄️ MFEr","#22d3a0"],["ifca","🌡️ IFCA","#a78bfa"],["celec","🔌 CELEC","#ffd166"]].map(([f,label,col])=>(
         <Btn key={f} onClick={()=>setFilter(f)} color={filter===f?col:"#1c2030"} textColor={filter===f?"white":"#6b7280"} sm>{label}</Btn>
       ))}
     </div>
@@ -598,7 +630,14 @@ function Notes(){
                 const {current}=getLevelInfo(xp);
                 return <tr key={st.name||st.nom||i} style={{borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
                   <td style={{padding:"0.65rem 0.8rem",fontWeight:600}}>{st.nom||st.name}</td>
-                  <td style={{padding:"0.65rem 0.8rem"}}><Badge type={st.classe}>{st.classe==="elec"?"⚡ Élec":st.classe==="cvc"?"🔥 CVC":"🔧 MIS"}</Badge></td>
+                  <td style={{padding:"0.65rem 0.8rem"}}><span style={{fontSize:"0.75rem",fontWeight:600,color:"#e8eaf0"}}>{
+                    {melec_seconde:"⚡ MELEC 2nde",melec_premiere:"⚡ MELEC 1ère",melec_terminale:"⚡ MELEC Term",
+                     iccer_seconde:"🔥 ICCER 2nde",iccer_premiere:"🔥 ICCER 1ère",iccer_terminale:"🔥 ICCER Term",
+                     mfer_seconde:"❄️ MFEr 2nde",mfer_premiere:"❄️ MFEr 1ère",mfer_terminale:"❄️ MFEr Term",
+                     ifca_cap1:"🌡️ IFCA CAP1",ifca_cap2:"🌡️ IFCA CAP2",
+                     celec_cap1:"🔌 CELEC CAP1",celec_cap2:"🔌 CELEC CAP2",
+                     elec:"⚡ Élec",cvc:"🔥 CVC",mis:"🔧 MIS"}[st.classe]||st.classe
+                  }</span></td>
                   <td style={{padding:"0.65rem 0.8rem",fontFamily:"monospace",color:"#ffd166",fontWeight:700}}>{xp}</td>
                   <td style={{padding:"0.65rem 0.8rem"}}><span style={{color:current.color,fontWeight:700}}>{current.icon} {current.name}</span></td>
                   {st.s1!==undefined&&<td style={{padding:"0.65rem 0.8rem"}}><NotePill val={st.s1}/></td>}
