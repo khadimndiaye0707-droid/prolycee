@@ -8,7 +8,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── XP SYSTEM ────────────────────────────────────────────────
 const LEVELS = [
-  { level: 1, name: "Apprenti",         icon: "🔌", xpMin: 0,    color: "#6b7280" },
+  { level: 1, name: "Apprenti",         icon: "🔌", xpMin: 0,    color: "#090c12" },
   { level: 2, name: "Câbleur",          icon: "🔧", xpMin: 500,  color: "#3d9fff" },
   { level: 3, name: "Électricien",      icon: "⚡", xpMin: 1500, color: "#22d3a0" },
   { level: 4, name: "Chef de chantier", icon: "🏗️", xpMin: 3000, color: "#a78bfa" },
@@ -44,7 +44,7 @@ function STUDENTS_DATA() {
 const STUDENTS = STUDENTS_DATA();
 
 const SEQUENCES = {
-  elec:[
+  melec:[
     {num:"01",title:"Installations basse tension",periode:"Sept–Oct",semaines:"S1–S6",
      resources:[{icon:"📖",name:"Cours — Notions BT",s:"ok"},{icon:"🎬",name:"Vidéo — Introduction BT",s:"wip"},{icon:"🛠️",name:"TP — Câblage tableau",s:"ok"},{icon:"📝",name:"TD — Schémas unifilaires",s:"ok"},{icon:"🎮",name:"Kahoot — Quiz BT",s:"soon"}]},
     {num:"02",title:"Protection des personnes",periode:"Nov–Déc",semaines:"S7–S13",
@@ -54,28 +54,38 @@ const SEQUENCES = {
     {num:"04",title:"Éclairage et efficacité énergétique",periode:"Mars–Juin",semaines:"S21–S35",
      resources:[{icon:"📖",name:"Cours — LED & économies",s:"soon"},{icon:"📝",name:"TD — Calcul éclairement",s:"soon"}]},
   ],
-  cvc:[
+  iccer:[
     {num:"01",title:"Thermodynamique appliquée",periode:"Sept–Oct",semaines:"S1–S6",
      resources:[{icon:"📖",name:"Cours — Lois thermodynamique",s:"ok"},{icon:"🎬",name:"Vidéo — Transferts de chaleur",s:"wip"},{icon:"📝",name:"TD — Calculs thermiques",s:"ok"}]},
     {num:"02",title:"Chauffage central",periode:"Nov–Déc",semaines:"S7–S13",
      resources:[{icon:"📖",name:"Cours — Chaudières & émetteurs",s:"ok"},{icon:"🛠️",name:"TP — Réglage chaudière",s:"ok"},{icon:"🎬",name:"Vidéo — Entretien chaudière",s:"soon"}]},
     {num:"03",title:"Ventilation et traitement d'air",periode:"Jan–Fév",semaines:"S14–S20",
      resources:[{icon:"📖",name:"Cours — VMC simple et double flux",s:"ok"},{icon:"🛠️",name:"TP — Installation VMC",s:"wip"},{icon:"📝",name:"TD — Dimensionnement réseau",s:"soon"}]},
-    {num:"04",title:"Climatisation & froid",periode:"Mars–Juin",semaines:"S21–S35",
-     resources:[{icon:"📖",name:"Cours — Cycle frigorifique",s:"soon"},{icon:"🎮",name:"Kahoot — Climatisation",s:"soon"}]},
+    {num:"04",title:"Énergies renouvelables",periode:"Mars–Juin",semaines:"S21–S35",
+     resources:[{icon:"📖",name:"Cours — Pompes à chaleur",s:"soon"},{icon:"🎮",name:"Kahoot — ENR",s:"soon"}]},
   ],
-  mis:[
-    {num:"01",title:"Réseau de distribution d'eau",periode:"Sept–Oct",semaines:"S1–S6",
-     resources:[{icon:"📖",name:"Cours — Distribution AEP",s:"ok"},{icon:"🎬",name:"Vidéo — Réseau EF/EC",s:"ok"},{icon:"🛠️",name:"TP — Lecture plans sanitaires",s:"ok"},{icon:"📝",name:"TD — Schémas de principe",s:"ok"},{icon:"🎮",name:"Kahoot — Distribution",s:"soon"}]},
-    {num:"02",title:"Raccordements et assemblages",periode:"Nov–Déc",semaines:"S7–S13",
-     resources:[{icon:"📖",name:"Cours — Techniques assemblage",s:"ok"},{icon:"🎬",name:"Vidéo — Sertissage et collage",s:"wip"},{icon:"🛠️",name:"TP — Raccordement",s:"ok"}]},
-    {num:"03",title:"Appareils sanitaires",periode:"Jan–Fév",semaines:"S14–S20",
-     resources:[{icon:"📖",name:"Cours — WC, lavabo, douche",s:"ok"},{icon:"🛠️",name:"TP — Pose WC suspendu",s:"wip"},{icon:"🎮",name:"Kahoot — Appareils sanitaires",s:"soon"}]},
-    {num:"04",title:"Évacuations EU/EP",periode:"Mars–Avr",semaines:"S21–S27",
-     resources:[{icon:"📖",name:"Cours — Réseaux EU, EV, EP",s:"ok"},{icon:"📝",name:"TD — Dimensionnement évacuations",s:"soon"}]},
-    {num:"05",title:"Production ECS & économies d'eau",periode:"Mai–Juin",semaines:"S28–S36",
-     resources:[{icon:"📖",name:"Cours — Chauffe-eau",s:"soon"},{icon:"🎮",name:"Kahoot — Bilan annuel",s:"soon"}]},
-  ]
+  mfer:[
+    {num:"01",title:"Cycle frigorifique",periode:"Sept–Oct",semaines:"S1–S6",
+     resources:[{icon:"📖",name:"Cours — Cycle frigorifique",s:"ok"},{icon:"🎬",name:"Vidéo — Composants frigorifiques",s:"wip"},{icon:"📝",name:"TD — Calculs frigorifiques",s:"ok"}]},
+    {num:"02",title:"Fluides frigorigènes",periode:"Nov–Déc",semaines:"S7–S13",
+     resources:[{icon:"📖",name:"Cours — Fluides et réglementation",s:"ok"},{icon:"🛠️",name:"TP — Manipulation fluides",s:"wip"}]},
+    {num:"03",title:"Climatisation & confort",periode:"Jan–Fév",semaines:"S14–S20",
+     resources:[{icon:"📖",name:"Cours — Climatisation",s:"soon"},{icon:"🛠️",name:"TP — Installation split",s:"soon"}]},
+    {num:"04",title:"Énergies renouvelables",periode:"Mars–Juin",semaines:"S21–S35",
+     resources:[{icon:"📖",name:"Cours — PAC et solaire",s:"soon"},{icon:"🎮",name:"Kahoot — ENR",s:"soon"}]},
+  ],
+  ifca:[
+    {num:"01",title:"Introduction au froid",periode:"Sept–Déc",semaines:"S1–S13",
+     resources:[{icon:"📖",name:"Cours — Bases du froid",s:"ok"},{icon:"🎬",name:"Vidéo — Composants",s:"wip"},{icon:"🛠️",name:"TP — Lecture schémas",s:"ok"}]},
+    {num:"02",title:"Installation et maintenance",periode:"Jan–Juin",semaines:"S14–S35",
+     resources:[{icon:"📖",name:"Cours — Installation",s:"ok"},{icon:"🛠️",name:"TP — Mise en service",s:"wip"},{icon:"🎮",name:"Kahoot — Bilan",s:"soon"}]},
+  ],
+  celec:[
+    {num:"01",title:"Installations électriques",periode:"Sept–Déc",semaines:"S1–S13",
+     resources:[{icon:"📖",name:"Cours — Bases électricité",s:"ok"},{icon:"🎬",name:"Vidéo — Sécurité électrique",s:"wip"},{icon:"🛠️",name:"TP — Câblage simple",s:"ok"}]},
+    {num:"02",title:"Maintenance et efficacité",periode:"Jan–Juin",semaines:"S14–S35",
+     resources:[{icon:"📖",name:"Cours — Maintenance",s:"ok"},{icon:"🛠️",name:"TP — Dépannage",s:"wip"},{icon:"🎮",name:"Kahoot — Bilan",s:"soon"}]},
+  ],
 };
 
 const TOW_QS = {
@@ -440,7 +450,7 @@ function XPPage({user,onAddXP}){
 // ── DASHBOARD ─────────────────────────────────────────────────
 function Dashboard({user,onAddXP}){
   if(user.role==="eleve"){
-    const seqs=SEQUENCES[user.classe?.split("_")[0]]||[];
+    const seqs=SEQUENCES[user.classe?.split("_")[0]]||SEQUENCES.melec;
     const [open,setOpen]=useState(null);
     const xp=user.xp||0;
     const {current}=getLevelInfo(xp);
@@ -540,7 +550,13 @@ function Dashboard({user,onAddXP}){
 function Classes(){
   const [selected,setSelected]=useState(null);
   const [open,setOpen]=useState(null);
-  const meta={elec:{label:"Bac Pro",title:"Électricité",sub:"Équipements & installations électriques",icon:"⚡",color:"#3d9fff"},cvc:{label:"Bac Pro",title:"CVC",sub:"Chauffage, Ventilation, Climatisation",icon:"🔥",color:"#ff4d6d"},mis:{label:"CAP",title:"MIS",sub:"Monteur en Installations Sanitaires",icon:"🔧",color:"#22d3a0"}};
+  const meta={
+    melec:{label:"Bac Pro",title:"MELEC",sub:"Métiers de l'Électricité et de ses Environnements Connectés",icon:"⚡",color:"#3d9fff"},
+    iccer:{label:"Bac Pro",title:"ICCER",sub:"Installation en Chauffage, Climatisation et Énergies Renouvelables",icon:"🔥",color:"#ff4d6d"},
+    mfer:{label:"Bac Pro",title:"MFEr",sub:"Métiers du Froid et des Énergies Renouvelables",icon:"❄️",color:"#22d3a0"},
+    ifca:{label:"CAP",title:"IFCA",sub:"Installation, Entretien Froid et Conditionnement d'Air",icon:"🌡️",color:"#a78bfa"},
+    celec:{label:"CAP",title:"CELEC",sub:"Maintenance et Efficacité Énergétique",icon:"🔌",color:"#ffd166"},
+  };
   if(selected){
     const m=meta[selected];const seqs=SEQUENCES[selected];
     return <div>
