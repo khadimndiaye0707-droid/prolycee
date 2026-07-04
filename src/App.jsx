@@ -8,11 +8,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── XP SYSTEM ────────────────────────────────────────────────
 const LEVELS = [
-  { level: 1, name: "Apprenti",         icon: "🔌", xpMin: 0,    color: "#6b7280" },
-  { level: 2, name: "Câbleur",          icon: "🔧", xpMin: 500,  color: "#3d9fff" },
-  { level: 3, name: "Électricien",      icon: "⚡", xpMin: 1500, color: "#22d3a0" },
-  { level: 4, name: "Chef de chantier", icon: "🏗️", xpMin: 3000, color: "#a78bfa" },
-  { level: 5, name: "Maître Élec",      icon: "👑", xpMin: 6000, color: "#ffd166" },
+  { level: 1, name: "Apprenti Archi",   icon: "📐", xpMin: 0,    color: "#6b7280" },
+  { level: 2, name: "Dessinateur",      icon: "✏️", xpMin: 500,  color: "#3d9fff" },
+  { level: 3, name: "Maquettiste BIM",  icon: "🏗️", xpMin: 1500, color: "#22d3a0" },
+  { level: 4, name: "Chef de projet",   icon: "📋", xpMin: 3000, color: "#a78bfa" },
+  { level: 5, name: "Maître TBAA",      icon: "👑", xpMin: 6000, color: "#ffd166" },
 ];
 
 const XP_GAINS = {
@@ -32,93 +32,57 @@ function getLevelInfo(xp) {
 
 function STUDENTS_DATA() {
   return [
-    { name:"Amara D.",    classe:"elec", s1:16, s2:15, s3:14, kahoot:1050, avg:15.2, xp:2800 },
-    { name:"Youssef M.",  classe:"elec", s1:14, s2:13, s3:15, kahoot:920,  avg:14,   xp:1900 },
-    { name:"Kevin T.",    classe:"cvc",  s1:12, s2:14, s3:11, kahoot:780,  avg:12.5, xp:1200 },
-    { name:"Saliou B.",   classe:"mis",  s1:17, s2:16, s3:18, kahoot:1200, avg:17,   xp:4200 },
-    { name:"Lucas P.",    classe:"elec", s1:10, s2:11, s3:9,  kahoot:600,  avg:10,   xp:680  },
-    { name:"Fatou N.",    classe:"cvc",  s1:15, s2:14, s3:16, kahoot:950,  avg:15,   xp:2100 },
-    { name:"Thomas R.",   classe:"mis",  s1:13, s2:12, s3:14, kahoot:820,  avg:13,   xp:1450 },
+    { name:"Amara D.",    classe:"terminale", s1:16, s2:15, s3:14, kahoot:1050, avg:15.2, xp:2800 },
+    { name:"Youssef M.",  classe:"terminale", s1:14, s2:13, s3:15, kahoot:920,  avg:14,   xp:1900 },
+    { name:"Kevin T.",    classe:"premiere",  s1:12, s2:14, s3:11, kahoot:780,  avg:12.5, xp:1200 },
+    { name:"Saliou B.",   classe:"seconde",   s1:17, s2:16, s3:18, kahoot:1200, avg:17,   xp:4200 },
+    { name:"Lucas P.",    classe:"terminale", s1:10, s2:11, s3:9,  kahoot:600,  avg:10,   xp:680  },
+    { name:"Fatou N.",    classe:"premiere",  s1:15, s2:14, s3:16, kahoot:950,  avg:15,   xp:2100 },
+    { name:"Thomas R.",   classe:"seconde",   s1:13, s2:12, s3:14, kahoot:820,  avg:13,   xp:1450 },
   ];
 }
 const STUDENTS = STUDENTS_DATA();
 
 const SEQUENCES = {
-  melec:[
-    {num:"01",title:"Installations basse tension",periode:"Sept–Oct",semaines:"S1–S6",
-     resources:[{icon:"📖",name:"Cours — Notions BT",s:"ok"},{icon:"🎬",name:"Vidéo — Introduction BT",s:"wip"},{icon:"🛠️",name:"TP — Câblage tableau",s:"ok"},{icon:"📝",name:"TD — Schémas unifilaires",s:"ok"},{icon:"🎮",name:"Kahoot — Quiz BT",s:"soon"}]},
-    {num:"02",title:"Protection des personnes",periode:"Nov–Déc",semaines:"S7–S13",
-     resources:[{icon:"📖",name:"Cours — Protections différentielles",s:"ok"},{icon:"🎬",name:"Vidéo — Disjoncteurs",s:"soon"},{icon:"🛠️",name:"TP — Mise en œuvre protections",s:"wip"},{icon:"📝",name:"TD — Calcul protections",s:"ok"}]},
-    {num:"03",title:"Domotique et gestion technique",periode:"Jan–Fév",semaines:"S14–S20",
-     resources:[{icon:"📖",name:"Cours — Domotique",s:"soon"},{icon:"🛠️",name:"TP — Programmation KNX",s:"soon"},{icon:"🎮",name:"Kahoot — Domotique",s:"soon"}]},
-    {num:"04",title:"Éclairage et efficacité énergétique",periode:"Mars–Juin",semaines:"S21–S35",
-     resources:[{icon:"📖",name:"Cours — LED & économies",s:"soon"},{icon:"📝",name:"TD — Calcul éclairement",s:"soon"}]},
+  seconde:[
+    {num:"01",title:"Progression à venir",periode:"Année scolaire",semaines:"À définir",
+     resources:[{icon:"📋",name:"Contenu à importer depuis le fichier Excel de progression",s:"soon"}]},
   ],
-  iccer:[
-    {num:"01",title:"Thermodynamique appliquée",periode:"Sept–Oct",semaines:"S1–S6",
-     resources:[{icon:"📖",name:"Cours — Lois thermodynamique",s:"ok"},{icon:"🎬",name:"Vidéo — Transferts de chaleur",s:"wip"},{icon:"📝",name:"TD — Calculs thermiques",s:"ok"}]},
-    {num:"02",title:"Chauffage central",periode:"Nov–Déc",semaines:"S7–S13",
-     resources:[{icon:"📖",name:"Cours — Chaudières & émetteurs",s:"ok"},{icon:"🛠️",name:"TP — Réglage chaudière",s:"ok"},{icon:"🎬",name:"Vidéo — Entretien chaudière",s:"soon"}]},
-    {num:"03",title:"Ventilation et traitement d'air",periode:"Jan–Fév",semaines:"S14–S20",
-     resources:[{icon:"📖",name:"Cours — VMC simple et double flux",s:"ok"},{icon:"🛠️",name:"TP — Installation VMC",s:"wip"},{icon:"📝",name:"TD — Dimensionnement réseau",s:"soon"}]},
-    {num:"04",title:"Énergies renouvelables",periode:"Mars–Juin",semaines:"S21–S35",
-     resources:[{icon:"📖",name:"Cours — Pompes à chaleur",s:"soon"},{icon:"🎮",name:"Kahoot — ENR",s:"soon"}]},
+  premiere:[
+    {num:"01",title:"Progression à venir",periode:"Année scolaire",semaines:"À définir",
+     resources:[{icon:"📋",name:"Contenu à importer depuis le fichier Excel de progression",s:"soon"}]},
   ],
-  mfer:[
-    {num:"01",title:"Cycle frigorifique",periode:"Sept–Oct",semaines:"S1–S6",
-     resources:[{icon:"📖",name:"Cours — Cycle frigorifique",s:"ok"},{icon:"🎬",name:"Vidéo — Composants frigorifiques",s:"wip"},{icon:"📝",name:"TD — Calculs frigorifiques",s:"ok"}]},
-    {num:"02",title:"Fluides frigorigènes",periode:"Nov–Déc",semaines:"S7–S13",
-     resources:[{icon:"📖",name:"Cours — Fluides et réglementation",s:"ok"},{icon:"🛠️",name:"TP — Manipulation fluides",s:"wip"}]},
-    {num:"03",title:"Climatisation & confort",periode:"Jan–Fév",semaines:"S14–S20",
-     resources:[{icon:"📖",name:"Cours — Climatisation",s:"soon"},{icon:"🛠️",name:"TP — Installation split",s:"soon"}]},
-    {num:"04",title:"Énergies renouvelables",periode:"Mars–Juin",semaines:"S21–S35",
-     resources:[{icon:"📖",name:"Cours — PAC et solaire",s:"soon"},{icon:"🎮",name:"Kahoot — ENR",s:"soon"}]},
-  ],
-  ifca:[
-    {num:"01",title:"Introduction au froid",periode:"Sept–Déc",semaines:"S1–S13",
-     resources:[{icon:"📖",name:"Cours — Bases du froid",s:"ok"},{icon:"🎬",name:"Vidéo — Composants",s:"wip"},{icon:"🛠️",name:"TP — Lecture schémas",s:"ok"}]},
-    {num:"02",title:"Installation et maintenance",periode:"Jan–Juin",semaines:"S14–S35",
-     resources:[{icon:"📖",name:"Cours — Installation",s:"ok"},{icon:"🛠️",name:"TP — Mise en service",s:"wip"},{icon:"🎮",name:"Kahoot — Bilan",s:"soon"}]},
-  ],
-  celec:[
-    {num:"01",title:"Installations électriques",periode:"Sept–Déc",semaines:"S1–S13",
-     resources:[{icon:"📖",name:"Cours — Bases électricité",s:"ok"},{icon:"🎬",name:"Vidéo — Sécurité électrique",s:"wip"},{icon:"🛠️",name:"TP — Câblage simple",s:"ok"}]},
-    {num:"02",title:"Maintenance et efficacité",periode:"Jan–Juin",semaines:"S14–S35",
-     resources:[{icon:"📖",name:"Cours — Maintenance",s:"ok"},{icon:"🛠️",name:"TP — Dépannage",s:"wip"},{icon:"🎮",name:"Kahoot — Bilan",s:"soon"}]},
+  terminale:[
+    {num:"01",title:"Progression à venir",periode:"Année scolaire",semaines:"À définir",
+     resources:[{icon:"📋",name:"Contenu à importer depuis le fichier Excel de progression",s:"soon"}]},
   ],
 };
 
 const TOW_QS = {
-  elec:[
-    {q:"Quelle est la couleur du fil de phase ?",a:"marron"},
-    {q:"Que signifie DDR ?",a:"dispositif différentiel résiduel"},
-    {q:"Quelle tension pour le réseau domestique en France ?",a:"230"},
-    {q:"Quel outil mesure le courant électrique ?",a:"ampèremètre"},
-    {q:"Quelle est la couleur du fil de terre ?",a:"vert jaune"},
+  seconde:[
+    {q:"Que signifie PLU ?",a:"plan local d'urbanisme"},
+    {q:"Que signifie BIM ?",a:"building information modeling"},
+    {q:"Quel logiciel sert à faire une maquette numérique 3D du bâtiment ?",a:"revit"},
   ],
-  cvc:[
-    {q:"Que signifie VMC ?",a:"ventilation mécanique contrôlée"},
-    {q:"Quel fluide circule dans un circuit de chauffage central ?",a:"eau"},
-    {q:"Que signifie ECS ?",a:"eau chaude sanitaire"},
-    {q:"Quel gaz réfrigérant écologique ?",a:"r32"},
-    {q:"Quel appareil chauffe l'eau sanitaire ?",a:"chauffe-eau"},
+  premiere:[
+    {q:"Que signifie CCTP ?",a:"cahier des clauses techniques particulières"},
+    {q:"Que signifie ERP ?",a:"établissement recevant du public"},
+    {q:"Que signifie PMR ?",a:"personne à mobilité réduite"},
   ],
-  mis:[
-    {q:"À quoi sert un siphon dans une installation sanitaire ?",a:"éviter les remontées d'odeurs"},
-    {q:"Quelle couleur désigne le tuyau d'eau froide ?",a:"bleu"},
-    {q:"Que signifie EF dans une installation sanitaire ?",a:"eau froide"},
-    {q:"Quel outil coupe les tubes en cuivre ?",a:"coupe-tube"},
-    {q:"Pression de test d'étanchéité ?",a:"3 bars"},
+  terminale:[
+    {q:"Que signifie Bbio ?",a:"besoin bioclimatique"},
+    {q:"Que signifie CEP ?",a:"consommation en énergie primaire"},
+    {q:"Que signifie RE2020 ?",a:"réglementation environnementale 2020"},
   ]
 };
 
 const SAMPLE_QUIZ = {
-  id:1, title:"Installations BT — Séquence 1", filiere:"elec",
+  id:1, title:"Bienvenue TBAA — Quiz de démarrage", filiere:"terminale",
   questions:[
-    {q:"Quelle est la couleur du fil de phase ?",answers:["Marron","Bleu","Vert-Jaune","Rouge"],correct:0,time:20},
-    {q:"À quoi sert un disjoncteur différentiel ?",answers:["Protéger les personnes","Mesurer le courant","Économiser l'énergie","Couper le réseau"],correct:0,time:30},
-    {q:"Que signifie BT ?",answers:["Basse Tension","Bonne Tension","Base Technique","Bloc Terminal"],correct:0,time:15},
-    {q:"Quelle est la couleur du fil neutre ?",answers:["Bleu","Marron","Vert","Noir"],correct:0,time:20},
+    {q:"Que signifie BIM ?",answers:["Building Information Modeling","Base Immobilière Municipale","Bureau Interne des Marchés","Bâtiment Intelligent Modulaire"],correct:0,time:20},
+    {q:"Que signifie PLU ?",answers:["Plan Local d'Urbanisme","Permis Légal Unique","Plan de Livraison Urbain","Programme Local d'Urbanisme"],correct:0,time:20},
+    {q:"Quel logiciel BIM est utilisé pour la maquette numérique ?",answers:["Revit","Excel","Photoshop","Chrome"],correct:0,time:15},
+    {q:"Que signifie PMR ?",answers:["Personne à Mobilité Réduite","Plan de Mise en Route","Protection Murale Renforcée","Passage Multi-Résidentiel"],correct:0,time:20},
   ]
 };
 
@@ -130,7 +94,7 @@ const s = {
 };
 
 function Badge({type,children}){
-  const map={elec:["rgba(61,159,255,0.15)","#3d9fff"],cvc:["rgba(255,77,109,0.15)","#ff4d6d"],mis:["rgba(34,211,160,0.15)","#22d3a0"],green:["rgba(34,211,160,0.15)","#22d3a0"],orange:["rgba(255,107,43,0.15)","#ff6b2b"],yellow:["rgba(255,209,102,0.15)","#ffd166"],purple:["rgba(167,139,250,0.15)","#a78bfa"]};
+  const map={seconde:["rgba(61,159,255,0.15)","#3d9fff"],premiere:["rgba(167,139,250,0.15)","#a78bfa"],terminale:["rgba(255,209,102,0.15)","#ffd166"],green:["rgba(34,211,160,0.15)","#22d3a0"],orange:["rgba(255,107,43,0.15)","#ff6b2b"],yellow:["rgba(255,209,102,0.15)","#ffd166"],purple:["rgba(167,139,250,0.15)","#a78bfa"]};
   const [bg,color]=map[type]||map.green;
   return <span style={s.badge(bg,color)}>{children}</span>;
 }
@@ -195,9 +159,8 @@ function Login({onLogin}){
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
   const [nom,setNom]=useState("");
-  const [filiere,setFiliere]=useState("elec");
   const [niveau,setNiveau]=useState("seconde");
-  const classe = `${filiere}_${niveau}`;
+  const classe = niveau;
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
 
@@ -298,27 +261,12 @@ function Login({onLogin}){
           </div>
 
           {authMode==="inscription"&&(<>
-            <div style={{marginBottom:"0.8rem"}}>
-              <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Ta filière</div>
-              <select style={s.input} value={filiere} onChange={e=>{setFiliere(e.target.value);setNiveau(["ifca","celec"].includes(e.target.value)?"cap1":"seconde");}}>
-                <option value="melec">⚡ Bac Pro MELEC</option>
-                <option value="iccer">🔥 Bac Pro ICCER</option>
-                <option value="mfer">❄️ Bac Pro MFEr</option>
-                <option value="ifca">🌡️ CAP IFCA</option>
-                <option value="celec">🔌 CAP CELEC</option>
-              </select>
-            </div>
             <div style={{marginBottom:"1rem"}}>
-              <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Ton niveau</div>
+              <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Ta classe</div>
               <select style={s.input} value={niveau} onChange={e=>setNiveau(e.target.value)}>
-                {["ifca","celec"].includes(filiere)?<>
-                  <option value="cap1">CAP 1ère année</option>
-                  <option value="cap2">CAP 2ème année</option>
-                </>:<>
-                  <option value="seconde">Seconde Pro</option>
-                  <option value="premiere">1ère Bac Pro</option>
-                  <option value="terminale">Terminale Bac Pro</option>
-                </>}
+                <option value="seconde">🏛️ Seconde</option>
+                <option value="premiere">🏛️ 1ère TBAA</option>
+                <option value="terminale">🏛️ Terminale TBAA</option>
               </select>
             </div>
           </>)}
@@ -450,26 +398,16 @@ function XPPage({user,onAddXP}){
 // ── DASHBOARD ─────────────────────────────────────────────────
 function Dashboard({user,onAddXP}){
   if(user.role==="eleve"){
-    const seqs=SEQUENCES[user.classe?.split("_")[0]]||SEQUENCES.melec;
+    const seqs=SEQUENCES[user.classe?.split("_")[0]]||SEQUENCES.seconde;
     const [open,setOpen]=useState(null);
     const xp=user.xp||0;
     const {current}=getLevelInfo(xp);
     const CLASSE_LABELS={
-      melec_seconde:"⚡ MELEC — Seconde Pro",
-      melec_premiere:"⚡ MELEC — 1ère Bac Pro",
-      melec_terminale:"⚡ MELEC — Terminale Bac Pro",
-      iccer_seconde:"🔥 ICCER — Seconde Pro",
-      iccer_premiere:"🔥 ICCER — 1ère Bac Pro",
-      iccer_terminale:"🔥 ICCER — Terminale Bac Pro",
-      mfer_seconde:"❄️ MFEr — Seconde Pro",
-      mfer_premiere:"❄️ MFEr — 1ère Bac Pro",
-      mfer_terminale:"❄️ MFEr — Terminale Bac Pro",
-      ifca_cap1:"🌡️ IFCA — CAP 1ère année",
-      ifca_cap2:"🌡️ IFCA — CAP 2ème année",
-      celec_cap1:"🔌 CELEC — CAP 1ère année",
-      celec_cap2:"🔌 CELEC — CAP 2ème année",
+      seconde:"🏛️ Seconde",
+      premiere:"🏛️ 1ère TBAA",
+      terminale:"🏛️ Terminale TBAA",
     };
-    const labels={melec:"⚡ Bac Pro MELEC",iccer:"🔥 Bac Pro ICCER",mfer:"❄️ Bac Pro MFEr",ifca:"🌡️ CAP IFCA",celec:"🔌 CAP CELEC"};
+    const labels={seconde:"🏛️ Seconde",premiere:"🏛️ 1ère TBAA",terminale:"🏛️ Terminale TBAA"};
     return <div>
       <div style={{background:"#1c2030",borderRadius:16,padding:"1.5rem",marginBottom:"1.5rem",border:"1px solid rgba(255,255,255,0.07)"}}>
         <div style={{display:"flex",alignItems:"center",gap:"1.5rem",marginBottom:"1rem"}}>
@@ -516,14 +454,14 @@ function Dashboard({user,onAddXP}){
   const sorted=[...STUDENTS].sort((a,b)=>b.xp-a.xp).slice(0,3);
   return <div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:"1rem",marginBottom:"1.5rem"}}>
-      {[["3","#3d9fff","Filières actives"],["47","#22d3a0","Élèves connectés"],["12","#ff6b2b","Quiz créés"]].map(([v,col,label])=>(
+      {[["3","#3d9fff","Classes actives"],["47","#22d3a0","Élèves connectés"],["12","#ff6b2b","Quiz créés"]].map(([v,col,label])=>(
         <Card key={label} style={{textAlign:"center",padding:"1.5rem"}}><div style={{fontSize:"2.5rem",fontWeight:900,color:col,lineHeight:1}}>{v}</div><div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginTop:"0.3rem"}}>{label}</div></Card>
       ))}
     </div>
     <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:"1rem"}}>
       <Card>
         <SectionTitle>📈 Progression par classe</SectionTitle>
-        {[["⚡ Bac Pro MELEC","68","#3d9fff"],["🔥 Bac Pro ICCER","52","#ff4d6d"],["❄️ Bac Pro MFEr","61","#22d3a0"],["🌡️ CAP IFCA","75","#a78bfa"],["🔌 CAP CELEC","70","#ffd166"]].map(([label,val,col])=>(
+        {[["🏛️ Seconde","68","#3d9fff"],["🏛️ 1ère TBAA","61","#a78bfa"],["🏛️ Terminale TBAA","75","#ffd166"]].map(([label,val,col])=>(
           <div key={label} style={{marginBottom:"0.8rem"}}>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:"0.8rem",marginBottom:"0.2rem"}}><span>{label}</span><span style={{color:col,fontWeight:700}}>{val}%</span></div>
             <Progress value={parseInt(val)} color={col}/>
@@ -551,11 +489,9 @@ function Classes(){
   const [selected,setSelected]=useState(null);
   const [open,setOpen]=useState(null);
   const meta={
-    melec:{label:"Bac Pro",title:"MELEC",sub:"Métiers de l'Électricité et de ses Environnements Connectés",icon:"⚡",color:"#3d9fff"},
-    iccer:{label:"Bac Pro",title:"ICCER",sub:"Installation en Chauffage, Climatisation et Énergies Renouvelables",icon:"🔥",color:"#ff4d6d"},
-    mfer:{label:"Bac Pro",title:"MFEr",sub:"Métiers du Froid et des Énergies Renouvelables",icon:"❄️",color:"#22d3a0"},
-    ifca:{label:"CAP",title:"IFCA",sub:"Installation, Entretien Froid et Conditionnement d'Air",icon:"🌡️",color:"#a78bfa"},
-    celec:{label:"CAP",title:"CELEC",sub:"Maintenance et Efficacité Énergétique",icon:"🔌",color:"#ffd166"},
+    seconde:{label:"Tronc commun",title:"Seconde",sub:"Seconde famille des métiers du bâtiment",icon:"🏛️",color:"#3d9fff"},
+    premiere:{label:"Bac Pro",title:"1ère TBAA",sub:"Technicien du Bâtiment — Option Assistant en Architecture",icon:"📐",color:"#a78bfa"},
+    terminale:{label:"Bac Pro",title:"Terminale TBAA",sub:"Technicien du Bâtiment — Option Assistant en Architecture",icon:"🏗️",color:"#ffd166"},
   };
   if(selected){
     const m=meta[selected];const seqs=SEQUENCES[selected];
@@ -627,7 +563,7 @@ function Notes(){
       {dbProfiles.length>0?`${dbProfiles.length} élèves inscrits en temps réel`:"Données de démonstration"}
     </div>
     <div style={{display:"flex",gap:"0.5rem",marginBottom:"1.2rem",flexWrap:"wrap"}}>
-      {[["all","Tous","#ff6b2b"],["melec","⚡ MELEC","#3d9fff"],["iccer","🔥 ICCER","#ff4d6d"],["mfer","❄️ MFEr","#22d3a0"],["ifca","🌡️ IFCA","#a78bfa"],["celec","🔌 CELEC","#ffd166"]].map(([f,label,col])=>(
+      {[["all","Tous","#ff6b2b"],["seconde","🏛️ Seconde","#3d9fff"],["premiere","📐 1ère TBAA","#a78bfa"],["terminale","🏗️ Terminale TBAA","#ffd166"]].map(([f,label,col])=>(
         <Btn key={f} onClick={()=>setFilter(f)} color={filter===f?col:"#1c2030"} textColor={filter===f?"white":"#6b7280"} sm>{label}</Btn>
       ))}
     </div>
@@ -647,12 +583,7 @@ function Notes(){
                 return <tr key={st.name||st.nom||i} style={{borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
                   <td style={{padding:"0.65rem 0.8rem",fontWeight:600}}>{st.nom||st.name}</td>
                   <td style={{padding:"0.65rem 0.8rem"}}><span style={{fontSize:"0.75rem",fontWeight:600,color:"#e8eaf0"}}>{
-                    {melec_seconde:"⚡ MELEC 2nde",melec_premiere:"⚡ MELEC 1ère",melec_terminale:"⚡ MELEC Term",
-                     iccer_seconde:"🔥 ICCER 2nde",iccer_premiere:"🔥 ICCER 1ère",iccer_terminale:"🔥 ICCER Term",
-                     mfer_seconde:"❄️ MFEr 2nde",mfer_premiere:"❄️ MFEr 1ère",mfer_terminale:"❄️ MFEr Term",
-                     ifca_cap1:"🌡️ IFCA CAP1",ifca_cap2:"🌡️ IFCA CAP2",
-                     celec_cap1:"🔌 CELEC CAP1",celec_cap2:"🔌 CELEC CAP2",
-                     elec:"⚡ Élec",cvc:"🔥 CVC",mis:"🔧 MIS"}[st.classe]||st.classe
+                    {seconde:"🏛️ Seconde",premiere:"📐 1ère TBAA",terminale:"🏗️ Terminale TBAA"}[st.classe]||st.classe
                   }</span></td>
                   <td style={{padding:"0.65rem 0.8rem",fontFamily:"monospace",color:"#ffd166",fontWeight:700}}>{xp}</td>
                   <td style={{padding:"0.65rem 0.8rem"}}><span style={{color:current.color,fontWeight:700}}>{current.icon} {current.name}</span></td>
@@ -679,9 +610,9 @@ function Kahoot({onAddXP}){
   const [scores,setScores]=useState({});
   const [manualQs,setManualQs]=useState([{q:"",answers:["","","",""],correct:0,time:30}]);
   const [quizTitle,setQuizTitle]=useState("");
-  const [quizFiliere,setQuizFiliere]=useState("elec");
+  const [quizFiliere,setQuizFiliere]=useState("terminale");
   const [iaTopique,setIaTopique]=useState("");
-  const [iaFiliere,setIaFiliere]=useState("elec");
+  const [iaFiliere,setIaFiliere]=useState("terminale");
   const [iaNb,setIaNb]=useState(5);
   const [courseText,setCourseText]=useState("");
   const [generated,setGenerated]=useState([]);
@@ -723,7 +654,7 @@ function Kahoot({onAddXP}){
   const generateQuestions=async(text,fromCourse=false)=>{
     setLoading(true);
     try{
-      const filiereName={elec:"électricité bâtiment",cvc:"chauffage ventilation climatisation",mis:"plomberie sanitaire"}[iaFiliere];
+      const filiereName={seconde:"assistant en architecture, niveau seconde",premiere:"assistant en architecture, niveau première bac pro",terminale:"assistant en architecture, niveau terminale bac pro"}[iaFiliere];
       const prompt=fromCourse
         ?`À partir de ce cours de lycée professionnel, génère 8 questions QCM. Réponds UNIQUEMENT en JSON valide:\n{"questions":[{"q":"?","answers":["r1","r2","r3","r4"],"correct":0,"time":20}]}\n\nCours:\n${text.slice(0,2000)}`
         :`Tu es professeur en ${filiereName}. Génère ${iaNb} questions QCM sur: "${text}". Réponds UNIQUEMENT en JSON valide:\n{"questions":[{"q":"?","answers":["r1","r2","r3","r4"],"correct":0,"time":20}]}`;
@@ -733,7 +664,7 @@ function Kahoot({onAddXP}){
       const parsed=JSON.parse(raw.replace(/```json|```/g,"").trim());
       setGenerated(parsed.questions||[]);
     }catch(e){
-      const fallback=TOW_QS[iaFiliere]||TOW_QS.elec;
+      const fallback=TOW_QS[iaFiliere]||TOW_QS.terminale;
       setGenerated(fallback.slice(0,fromCourse?6:iaNb).map(q=>({q:q.q,answers:[q.a,"Mauvaise réponse B","Mauvaise réponse C","Mauvaise réponse D"],correct:0,time:20})));
     }
     setLoading(false);
@@ -811,7 +742,7 @@ function Kahoot({onAddXP}){
           <div><div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginBottom:"0.3rem"}}>Titre</div><input style={s.input} placeholder="Titre du quiz..." value={quizTitle} onChange={e=>setQuizTitle(e.target.value)}/></div>
           <div><div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginBottom:"0.3rem"}}>Filière</div>
             <select style={s.input} value={quizFiliere} onChange={e=>setQuizFiliere(e.target.value)}>
-              <option value="elec">⚡ Bac Pro Électricité</option><option value="cvc">🔥 Bac Pro CVC</option><option value="mis">🔧 CAP MIS</option>
+              <option value="seconde">🏛️ Seconde</option><option value="premiere">📐 1ère TBAA</option><option value="terminale">🏗️ Terminale TBAA</option>
             </select>
           </div>
         </div>
@@ -854,7 +785,7 @@ function Kahoot({onAddXP}){
         <div style={{marginBottom:"0.8rem"}}>
           <div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginBottom:"0.4rem"}}>Filière</div>
           <div style={{display:"flex",gap:"0.4rem",flexWrap:"wrap"}}>
-            {[["elec","⚡ Électricité"],["cvc","🔥 CVC"],["mis","🔧 MIS"]].map(([k,label])=>(
+            {[["seconde","🏛️ Seconde"],["premiere","📐 1ère TBAA"],["terminale","🏗️ Terminale TBAA"]].map(([k,label])=>(
               <button key={k} onClick={()=>setIaFiliere(k)} style={{padding:"0.4rem 0.9rem",background:iaFiliere===k?"rgba(167,139,250,0.2)":"#1c2030",border:`1px solid ${iaFiliere===k?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.07)"}`,borderRadius:20,fontSize:"0.78rem",fontWeight:600,color:iaFiliere===k?"#a78bfa":"#6b7280",cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
             ))}
           </div>
@@ -923,8 +854,8 @@ function Kahoot({onAddXP}){
           </Card>
         ))}
         <div style={{display:"flex",gap:"0.6rem",marginTop:"1rem"}}>
-          <Btn onClick={()=>{const q={id:Date.now(),title:"Quiz depuis cours",filiere:"elec",questions:generated};setQuizzes(p=>[...p,q]);startQuiz(q);}}>🚀 Lancer</Btn>
-          <Btn onClick={()=>{setQuizzes(p=>[...p,{id:Date.now(),title:"Quiz depuis cours",filiere:"elec",questions:generated}]);setMode("menu");}} color="#1c2030" textColor="#6b7280">💾 Sauvegarder</Btn>
+          <Btn onClick={()=>{const q={id:Date.now(),title:"Quiz depuis cours",filiere:"terminale",questions:generated};setQuizzes(p=>[...p,q]);startQuiz(q);}}>🚀 Lancer</Btn>
+          <Btn onClick={()=>{setQuizzes(p=>[...p,{id:Date.now(),title:"Quiz depuis cours",filiere:"terminale",questions:generated}]);setMode("menu");}} color="#1c2030" textColor="#6b7280">💾 Sauvegarder</Btn>
         </div>
       </>}
     </div>;
@@ -951,7 +882,7 @@ function Kahoot({onAddXP}){
     </div>
     {quizzes.map(q=>(
       <Card key={q.id} style={{display:"flex",alignItems:"center",gap:"1rem",marginBottom:"0.6rem"}}>
-        <div style={{flex:1}}><div style={{fontWeight:700}}>{q.title}</div><div style={{fontSize:"0.72rem",color:"#6b7280",marginTop:"0.2rem"}}><Badge type={q.filiere}>{q.filiere==="elec"?"⚡ Élec":q.filiere==="cvc"?"🔥 CVC":"🔧 MIS"}</Badge> · {q.questions.length} questions</div></div>
+        <div style={{flex:1}}><div style={{fontWeight:700}}>{q.title}</div><div style={{fontSize:"0.72rem",color:"#6b7280",marginTop:"0.2rem"}}><Badge type={q.filiere}>{q.filiere==="seconde"?"🏛️ Seconde":q.filiere==="premiere"?"📐 1ère TBAA":"🏗️ Terminale TBAA"}</Badge> · {q.questions.length} questions</div></div>
         <Btn onClick={()=>startQuiz(q)} sm>▶ Lancer</Btn>
       </Card>
     ))}
@@ -963,8 +894,8 @@ function TugOfWar({onAddXP}){
   const [phase,setPhase]=useState("setup");
   const [teamA,setTeamA]=useState("Équipe Bleue");
   const [teamB,setTeamB]=useState("Équipe Rouge");
-  const [filiere,setFiliere]=useState("elec");
-  const [questions,setQuestions]=useState(TOW_QS.elec.map(q=>({...q})));
+  const [filiere,setFiliere]=useState("terminale");
+  const [questions,setQuestions]=useState(TOW_QS.terminale.map(q=>({...q})));
   const [qIdx,setQIdx]=useState(0);
   const [scoreA,setScoreA]=useState(0);
   const [scoreB,setScoreB]=useState(0);
@@ -1070,7 +1001,7 @@ function TugOfWar({onAddXP}){
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.8rem"}}>
         <SectionTitle>❓ Questions</SectionTitle>
         <div style={{display:"flex",gap:"0.4rem"}}>
-          {[["elec","⚡"],["cvc","🔥"],["mis","🔧"]].map(([k,icon])=><Btn key={k} onClick={()=>loadFiliere(k)} color={filiere===k?"#ff6b2b":"#1c2030"} textColor={filiere===k?"white":"#6b7280"} sm>{icon} {k.toUpperCase()}</Btn>)}
+          {[["seconde","🏛️"],["premiere","📐"],["terminale","🏗️"]].map(([k,icon])=><Btn key={k} onClick={()=>loadFiliere(k)} color={filiere===k?"#ff6b2b":"#1c2030"} textColor={filiere===k?"white":"#6b7280"} sm>{icon} {k.charAt(0).toUpperCase()+k.slice(1)}</Btn>)}
         </div>
       </div>
       {questions.map((q,i)=>(
@@ -1091,11 +1022,11 @@ function TugOfWar({onAddXP}){
 function Championship(){
   const sorted=[...STUDENTS].sort((a,b)=>b.xp-a.xp);
   const champ=[
-    {rank:1,name:"Amara D.",classe:"elec",k:[950,1100,900,1200],total:4150},
-    {rank:2,name:"Youssef M.",classe:"elec",k:[800,900,850,870],total:3420},
-    {rank:3,name:"Kevin T.",classe:"cvc",k:[700,750,720,720],total:2890},
-    {rank:4,name:"Saliou B.",classe:"mis",k:[600,700,650,600],total:2550},
-    {rank:5,name:"Fatou N.",classe:"cvc",k:[500,600,550,500],total:2150},
+    {rank:1,name:"Amara D.",classe:"terminale",k:[950,1100,900,1200],total:4150},
+    {rank:2,name:"Youssef M.",classe:"terminale",k:[800,900,850,870],total:3420},
+    {rank:3,name:"Kevin T.",classe:"premiere",k:[700,750,720,720],total:2890},
+    {rank:4,name:"Saliou B.",classe:"seconde",k:[600,700,650,600],total:2550},
+    {rank:5,name:"Fatou N.",classe:"premiere",k:[500,600,550,500],total:2150},
   ];
   const [tab,setTab]=useState("xp");
   return <div>
@@ -1152,7 +1083,7 @@ function Championship(){
                 <tr key={st.name} style={{borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
                   <td style={{padding:"0.6rem 0.8rem",color:"#ffd166",fontWeight:700}}>{st.rank===1?"🥇":st.rank===2?"🥈":st.rank===3?"🥉":st.rank}</td>
                   <td style={{padding:"0.6rem 0.8rem",fontWeight:600}}>{st.name}</td>
-                  <td style={{padding:"0.6rem 0.8rem"}}><Badge type={st.classe}>{st.classe==="elec"?"⚡ Élec":st.classe==="cvc"?"🔥 CVC":"🔧 MIS"}</Badge></td>
+                  <td style={{padding:"0.6rem 0.8rem"}}><Badge type={st.classe}>{st.classe==="seconde"?"🏛️ Seconde":st.classe==="premiere"?"📐 1ère TBAA":"🏗️ Term TBAA"}</Badge></td>
                   {st.k.map((k,i)=><td key={i} style={{padding:"0.6rem 0.8rem",fontFamily:"monospace",fontSize:"0.8rem"}}>{k}</td>)}
                   <td style={{padding:"0.6rem 0.8rem",fontFamily:"monospace",fontWeight:700,color:"#ffd166"}}>{st.total}</td>
                 </tr>
