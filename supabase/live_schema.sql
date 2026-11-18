@@ -1,6 +1,7 @@
 -- ════════════════════════════════════════════════════════════════
---  ProLycée — Quiz live (étape 1)
---  À coller UNE SEULE FOIS dans Supabase > SQL Editor > New query > Run
+--  ProLycée — Quiz live + quiz BTP (plans, zones, 3D)
+--  À coller dans Supabase > SQL Editor > New query > Run.
+--  Ce script peut être relancé sans risque (même s'il a déjà été exécuté).
 --  Avant de lancer : remplace MON-CODE-PROF (ligne « app_config ») par
 --  ton propre code secret (tu le taperas dans le site pour piloter les parties).
 -- ════════════════════════════════════════════════════════════════
@@ -42,6 +43,7 @@ create table if not exists live_games (
   q_started_at timestamptz,
   created_at timestamptz not null default now()
 );
+alter table live_games add column if not exists reveal jsonb;   -- bonne réponse affichée à la correction
 create unique index if not exists live_games_pin_actif on live_games (pin) where status <> 'finished';
 
 create table if not exists live_players (
@@ -65,6 +67,23 @@ create table if not exists live_answers (
   created_at timestamptz not null default now(),
   unique (player_id, q_index)
 );
+
+alter table live_answers alter column choice drop not null;
+alter table live_answers add column if not exists x numeric;      -- clic sur le plan (0 à 1)
+alter table live_answers add column if not exists y numeric;
+alter table live_answers add column if not exists value numeric;  -- réponse numérique
+
+-- Quiz sauvegardés (contiennent les bonnes réponses : lisibles uniquement avec le code prof)
+create table if not exists quizzes (
+  id uuid primary key default gen_random_uuid(),
+  titre text not null,
+  classe text,
+  theme text,
+  questions jsonb not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table quizzes enable row level security;
 
 -- ── 3. Sécurité : lecture publique du jeu, écriture uniquement par les fonctions ──
 alter table roster       enable row level security;   -- illisible : les codes restent secrets
@@ -138,22 +157,35 @@ returns void language plpgsql security definer set search_path = public as $$
 begin
   perform _check_prof(p_secret);
   update live_games set status = 'question', q_index = p_index, question = p_question,
-         correct = null, q_started_at = now() where id = p_game;
+         correct = null, reveal = null, q_started_at = now() where id = p_game;
 end $$;
 
--- Correction : fixe la bonne réponse et calcule les points (1000 max, 500 min, selon la rapidité)
-create or replace function host_reveal(p_secret text, p_game uuid, p_correct int, p_time int)
+-- Correction : évalue chaque réponse (QCM, zone sur le plan, valeur numérique) et calcule les points
+-- p_answer : {"type":"qcm","correct":1} | {"type":"zone","x":.2,"y":.3,"w":.1,"h":.1} | {"type":"num","value":2.5,"tol":0.1}
+drop function if exists host_reveal(text, uuid, int, int);
+create or replace function host_reveal(p_secret text, p_game uuid, p_answer jsonb, p_time int)
 returns void language plpgsql security definer set search_path = public as $$
-declare v_q int; v_t numeric := greatest(p_time, 1) * 1000;
+declare v_q int; v_t numeric := greatest(p_time, 1) * 1000; v_type text := coalesce(p_answer->>'type', 'qcm');
 begin
   perform _check_prof(p_secret);
   select q_index into v_q from live_games where id = p_game;
+  update live_answers a set correct = case
+      when v_type = 'zone' then
+        a.x is not null and a.y is not null
+        and a.x between (p_answer->>'x')::numeric and (p_answer->>'x')::numeric + (p_answer->>'w')::numeric
+        and a.y between (p_answer->>'y')::numeric and (p_answer->>'y')::numeric + (p_answer->>'h')::numeric
+      when v_type = 'num' then
+        a.value is not null
+        and abs(a.value - (p_answer->>'value')::numeric) <= coalesce((p_answer->>'tol')::numeric, 0)
+      else a.choice is not null and a.choice = (p_answer->>'correct')::int
+    end
+  where a.game_id = p_game and a.q_index = v_q;
   update live_answers set
-    correct = (choice = p_correct),
-    points = case when choice = p_correct
-                  then round(1000 * (1 - (least(ms, v_t) / v_t) / 2))::int else 0 end
+    points = case when correct then round(1000 * (1 - (least(ms, v_t) / v_t) / 2))::int else 0 end
   where game_id = p_game and q_index = v_q;
-  update live_games set status = 'reveal', correct = p_correct where id = p_game;
+  update live_games set status = 'reveal', reveal = p_answer,
+         correct = case when v_type = 'qcm' then (p_answer->>'correct')::int end
+   where id = p_game;
 end $$;
 
 create or replace function host_finish(p_secret text, p_game uuid) returns void
@@ -189,19 +221,65 @@ begin
   return query select p.id, g.id, p.nom, g.mode;
 end $$;
 
-create or replace function submit_answer(p_player uuid, p_q int, p_choice int, p_ms int)
+drop function if exists submit_answer(uuid, int, int, int);
+create or replace function submit_answer(p_player uuid, p_q int, p_choice int, p_ms int,
+                                         p_x numeric default null, p_y numeric default null, p_value numeric default null)
 returns void language plpgsql security definer set search_path = public as $$
 declare g live_games; v_game uuid;
 begin
   select live_players.game_id into v_game from live_players where id = p_player;
   select * into g from live_games where id = v_game;
   if not found or g.status <> 'question' or g.q_index <> p_q then return; end if;  -- trop tard : ignoré
-  insert into live_answers (game_id, player_id, q_index, choice, ms)
-    values (g.id, p_player, p_q, p_choice, greatest(p_ms, 0))
+  insert into live_answers (game_id, player_id, q_index, choice, ms, x, y, value)
+    values (g.id, p_player, p_q, p_choice, greatest(p_ms, 0),
+            least(greatest(p_x, 0), 1), least(greatest(p_y, 0), 1), p_value)
     on conflict (player_id, q_index) do nothing;
 end $$;
 
+-- ── 6 bis. Quiz sauvegardés (code prof requis) ───────────────────
+create or replace function host_quiz_list(p_secret text) returns setof quizzes
+language plpgsql security definer set search_path = public as $$
+begin perform _check_prof(p_secret); return query select * from quizzes order by updated_at desc; end $$;
+
+create or replace function host_quiz_save(p_secret text, p_id uuid, p_titre text, p_classe text, p_theme text, p_questions jsonb)
+returns quizzes language plpgsql security definer set search_path = public as $$
+declare q quizzes;
+begin
+  perform _check_prof(p_secret);
+  if p_id is not null and exists (select 1 from quizzes where id = p_id) then
+    update quizzes set titre = p_titre, classe = nullif(p_classe, ''), theme = nullif(p_theme, ''),
+           questions = p_questions, updated_at = now() where id = p_id returning * into q;
+  else
+    insert into quizzes (titre, classe, theme, questions)
+      values (p_titre, nullif(p_classe, ''), nullif(p_theme, ''), p_questions) returning * into q;
+  end if;
+  return q;
+end $$;
+
+create or replace function host_quiz_delete(p_secret text, p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin perform _check_prof(p_secret); delete from quizzes where id = p_id; end $$;
+
+-- ── 6 ter. Stockage des plans, images et modèles 3D (bucket public « quiz-media ») ──
+do $$ begin
+  if exists (select 1 from information_schema.schemata where schema_name = 'storage') then
+    insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+      values ('quiz-media', 'quiz-media', true, 26214400,
+              array['image/png','image/jpeg','image/webp','model/gltf-binary','application/octet-stream'])
+      on conflict (id) do update set public = true, file_size_limit = 26214400,
+        allowed_mime_types = array['image/png','image/jpeg','image/webp','model/gltf-binary','application/octet-stream'];
+    drop policy if exists quiz_media_lecture on storage.objects;
+    drop policy if exists quiz_media_envoi on storage.objects;
+    create policy quiz_media_lecture on storage.objects for select using (bucket_id = 'quiz-media');
+    create policy quiz_media_envoi on storage.objects for insert with check (bucket_id = 'quiz-media');
+  end if;
+end $$;
+
 -- ── 7. Temps réel ────────────────────────────────────────────────
-alter publication supabase_realtime add table live_games;
-alter publication supabase_realtime add table live_players;
-alter publication supabase_realtime add table live_answers;
+do $$ declare t text; begin
+  foreach t in array array['live_games','live_players','live_answers'] loop
+    if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t) then
+      execute format('alter publication supabase_realtime add table %I', t);
+    end if;
+  end loop;
+end $$;

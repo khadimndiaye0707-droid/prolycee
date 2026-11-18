@@ -4,11 +4,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import QRCode from "qrcode";
 import { supabase } from "./supabase";
+import { QuestionView, Media } from "./QuizParts";
+import { answerSpec, publicQuestion } from "./quizLogic";
+import { useSecret } from "./hooks";
 
 const COLORS = ["#e74c3c", "#3498db", "#2ecc71", "#f39c12"];
 const LETTRES = ["A", "B", "C", "D"];
 const CLASSES = { seconde: "🏛️ Seconde", premiere: "📐 1ère TBAA", terminale: "🏗️ Terminale TBAA" };
-const SECRET_KEY = "prolycee_code_prof";
 const MODES = {
   competition: { icon: "🏆", label: "Compétition", sub: "Classement en direct, points cumulés au championnat" },
   revision: { icon: "📖", label: "Révision", sub: "Sans classement, sans pression, pas de points de championnat" },
@@ -16,12 +18,6 @@ const MODES = {
 
 const now = () => Date.now();
 const errText = (e) => (e && e.message ? e.message : "Erreur de connexion");
-
-function useSecret() {
-  const [secret, setSecret] = useState(() => localStorage.getItem(SECRET_KEY) || "");
-  const save = (v) => { setSecret(v); localStorage.setItem(SECRET_KEY, v); };
-  return [secret, save];
-}
 
 function Medal({ i }) { return <>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}</>; }
 
@@ -61,7 +57,7 @@ export function LiveHost({ quiz, onExit }) {
     if (!gid) return;
     const [p, a, t] = await Promise.all([
       supabase.from("live_players").select("id,nom,roster_id").eq("game_id", gid).order("created_at"),
-      supabase.from("live_answers").select("player_id,q_index,choice,correct,points").eq("game_id", gid),
+      supabase.from("live_answers").select("player_id,q_index,choice,correct,points,x,y,value").eq("game_id", gid),
       supabase.from("live_totals").select("*").eq("game_id", gid).order("total", { ascending: false }),
     ]);
     if (p.data) setPlayers(p.data);
@@ -106,7 +102,7 @@ export function LiveHost({ quiz, onExit }) {
     try {
       await rpc("host_set_question", {
         p_secret: secret, p_game: gid, p_index: i,
-        p_question: { q: qq.q, answers: qq.answers, time: qq.time || 30 },   // sans la bonne réponse
+        p_question: publicQuestion(qq),   // sans la bonne réponse
       });
       revealing.current = false;
       setGame((g) => ({ ...g, status: "question", q_index: i, correct: null }));
@@ -119,7 +115,7 @@ export function LiveHost({ quiz, onExit }) {
     if (revealing.current || !q) return;
     revealing.current = true;
     try {
-      await rpc("host_reveal", { p_secret: secret, p_game: gid, p_correct: q.correct, p_time: q.time || 30 });
+      await rpc("host_reveal", { p_secret: secret, p_game: gid, p_answer: answerSpec(q), p_time: q.time || 30 });
       setGame((g) => ({ ...g, status: "reveal", correct: q.correct }));
       await refresh();
     } catch (e) { setError(errText(e)); revealing.current = false; }
@@ -236,13 +232,15 @@ export function LiveHost({ quiz, onExit }) {
         <div className="kh-timer" role="timer" style={{ color: timerColor }}>{timer}<small>s</small></div>
         <div className="kh-timebar" aria-hidden="true"><div style={{ width: `${Math.max(0, Math.min(100, (timer / (q.time || 30)) * 100))}%`, background: timerColor }} /></div>
       </div>
-      <div className="kh-grid">
-        {q.answers.map((a, i) => (
+      {q.media && <Media media={q.media} maxVh={56} />}
+      {q.donnees?.length > 0 && <table className="table bim-table"><tbody>{q.donnees.map((d, i) => <tr key={i}><th scope="row">{d.label}</th><td>{d.valeur}</td></tr>)}</tbody></table>}
+      {(q.type || "qcm") === "qcm" ? <div className="kh-grid">
+        {q.answers.map((a, i) => a && (
           <div key={i} className="kh-answer" data-state="idle" style={{ "--kh": COLORS[i] }}>
             <span className="kh-letter" aria-hidden="true">{LETTRES[i]}</span><span className="kh-text">{a}</span>
           </div>
         ))}
-      </div>
+      </div> : <p className="banner" data-tone="neutral">{q.type === "zone" ? "📍 Les élèves touchent le plan à l'endroit demandé." : `🔢 Les élèves saisissent une valeur${q.unit ? ` (en ${q.unit})` : ""}.`}</p>}
       <p className="live-count num" role="status">✋ {answersQ.length} / {players.length} réponses</p>
       {error && <div className="alert" role="alert">{error}</div>}
       <button type="button" className="btn btn-secondary" onClick={reveal}>Corriger maintenant</button>
@@ -251,20 +249,28 @@ export function LiveHost({ quiz, onExit }) {
 
   // ── Correction ──
   if (status === "reveal" && q) {
-    const counts = q.answers.map((_, i) => answersQ.filter((a) => a.choice === i).length);
+    const qt = q.type || "qcm";
+    const counts = qt === "qcm" ? q.answers.map((_, i) => answersQ.filter((a) => a.choice === i).length) : [];
+    const nbOk = answersQ.filter((a) => a.correct).length;
+    const spec = answerSpec(q);
+    const dots = qt === "zone" ? answersQ.filter((a) => a.x != null).map((a) => ({ x: +a.x, y: +a.y, ok: a.correct })) : [];
     const last = qIdx + 1 >= quiz.questions.length;
     return <div>
       {header(game.titre)}
       <div className="card kh-question"><h2 className="kh-q">{q.q}</h2></div>
-      <div className="kh-grid">
-        {q.answers.map((a, i) => (
+      {q.media && <Media media={q.media} maxVh={56} rect={qt === "zone" ? q.zone : null} dots={dots} />}
+      {qt === "qcm" && <div className="kh-grid">
+        {q.answers.map((a, i) => a && (
           <div key={i} className="kh-answer" data-state={i === q.correct ? "correct" : "muted"} style={{ "--kh": COLORS[i], ...(i === q.correct ? {} : { background: `${COLORS[i]}33` }) }}>
             <span className="kh-letter" aria-hidden="true">{i === q.correct ? "✓" : LETTRES[i]}</span>
             <span className="kh-text">{a}</span>
             <span className="live-bar-count num">{counts[i]}</span>
           </div>
         ))}
-      </div>
+      </div>}
+      {qt === "num" && <p className="banner" data-tone="neutral">Valeur attendue : <b>{spec.value}{spec.unit ? ` ${spec.unit}` : ""}</b>{spec.tol ? ` (± ${spec.tol})` : ""} · {answersQ.length ? `réponses : ${answersQ.map((a) => a.value).join(" ; ")}` : "aucune réponse"}</p>}
+      {qt === "zone" && <p className="hint" style={{ textAlign: "center", margin: "0.4rem 0 1rem" }}>🟢 bonne réponse · 🔴 mauvaise · rectangle = zone attendue</p>}
+      {spec.explication && <p className="banner" data-tone="neutral">💡 {spec.explication}</p>}
       {game.mode === "competition" ? (
         <div className="card" style={{ margin: "1rem 0" }}>
           <div className="overline" style={{ marginBottom: "0.3rem" }}>🏆 Classement</div>
@@ -275,7 +281,7 @@ export function LiveHost({ quiz, onExit }) {
           ))}
         </div>
       ) : (
-        <p className="banner" data-tone="neutral" style={{ margin: "1rem 0" }}>📖 Révision : {counts[q.correct]} élève{counts[q.correct] > 1 ? "s" : ""} sur {answersQ.length} {counts[q.correct] > 1 ? "ont" : "a"} trouvé la bonne réponse.</p>
+        <p className="banner" data-tone="neutral" style={{ margin: "1rem 0" }}>📖 Révision : {nbOk} élève{nbOk > 1 ? "s" : ""} sur {answersQ.length} {nbOk > 1 ? "ont" : "a"} trouvé la bonne réponse.</p>
       )}
       {error && <div className="alert" role="alert">{error}</div>}
       <button type="button" className="btn btn-primary btn-lg" disabled={busy} onClick={() => (last ? finish() : askQuestion(qIdx + 1))}>
@@ -379,7 +385,7 @@ export function LiveJoin() {
     if (!game || !me || (game.status !== "reveal" && game.status !== "finished")) return;
     (async () => {
       const [a, t] = await Promise.all([
-        supabase.from("live_answers").select("correct,points").eq("player_id", me.player_id).eq("q_index", game.q_index).maybeSingle(),
+        supabase.from("live_answers").select("correct,points,choice,x,y,value").eq("player_id", me.player_id).eq("q_index", game.q_index).maybeSingle(),
         supabase.from("live_totals").select("player_id,total").eq("game_id", game.id).order("total", { ascending: false }),
       ]);
       if (a.data) setResult(a.data); else setResult({ correct: false, points: 0, none: true });
@@ -390,11 +396,14 @@ export function LiveJoin() {
     })();
   }, [game?.status, game?.q_index, game?.id, me]);   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const answer = async (i) => {
+  const answer = async (payload) => {
     if (chosen !== null || game.status !== "question") return;
-    setChosen(i);
+    setChosen(payload);
     const ms = now() - shownAt.current;
-    const { error: e } = await supabase.rpc("submit_answer", { p_player: me.player_id, p_q: game.q_index, p_choice: i, p_ms: ms });
+    const { error: e } = await supabase.rpc("submit_answer", {
+      p_player: me.player_id, p_q: game.q_index, p_choice: payload.choice ?? null, p_ms: ms,
+      p_x: payload.x ?? null, p_y: payload.y ?? null, p_value: payload.value ?? null,
+    });
     if (e) setError(errText(e));
   };
 
@@ -428,15 +437,9 @@ export function LiveJoin() {
     body = <div>
       <div className="live-qhead"><span className="page-meta num">Question {game.q_index + 1}/{game.total}</span><span className="kh-timer-sm num" style={{ color: timerColor }}>{timer}s</span></div>
       <h2 className="kh-q live-q">{qq?.q}</h2>
-      {chosen === null ? (
-        <div className="kh-grid live-grid">
-          {(qq?.answers || []).map((a, i) => (
-            <button type="button" key={i} className="kh-answer" data-state="idle" style={{ "--kh": COLORS[i] }} onClick={() => answer(i)}>
-              <span className="kh-letter" aria-hidden="true">{LETTRES[i]}</span><span className="kh-text">{a}</span>
-            </button>
-          ))}
-        </div>
-      ) : <div className="live-center" role="status"><div className="result-emoji" aria-hidden="true">✅</div><p><b>Réponse envoyée !</b></p><p className="hint">Attends la correction.</p></div>}
+      {chosen === null
+        ? <QuestionView key={game.q_index} q={qq} onAnswer={answer} />
+        : <div className="live-center" role="status"><div className="result-emoji" aria-hidden="true">✅</div><p><b>Réponse envoyée !</b></p><p className="hint">Attends la correction.</p></div>}
       {error && <div className="alert" role="alert">{error}</div>}
     </div>;
   } else if (game.status === "reveal") {
@@ -445,7 +448,9 @@ export function LiveJoin() {
         ? <><div className="result-emoji" aria-hidden="true">⏱️</div><h2 className="page-title">Pas de réponse</h2></>
         : result.correct
           ? <><div className="result-emoji" aria-hidden="true">🎉</div><h2 className="page-title">Bonne réponse !</h2>{competition && <p className="live-pts num">+{result.points} pts</p>}</>
-          : <><div className="result-emoji" aria-hidden="true">😅</div><h2 className="page-title">Raté…</h2><p className="hint">La bonne réponse : {LETTRES[game.correct]}. {game.question?.answers?.[game.correct]}</p></>}
+          : <><div className="result-emoji" aria-hidden="true">😅</div><h2 className="page-title">Raté…</h2></>}
+      {result && !result.none && game.question && <div style={{ textAlign: "left" }}><QuestionView key={`r${game.q_index}`} q={{ ...game.question, answers: game.question.answers }} locked reveal={{ spec: game.reveal || { type: "qcm", correct: game.correct }, mine: result }} /></div>}
+      {result?.none && game.question && <div style={{ textAlign: "left" }}><QuestionView key={`r${game.q_index}`} q={game.question} locked reveal={{ spec: game.reveal || { type: "qcm", correct: game.correct }, mine: null }} /></div>}
       {competition && rank && <p className="banner" data-tone="neutral">Tu es <b>{rank.pos}{rank.pos === 1 ? "er" : "e"}</b> sur {rank.nb} · {rank.total} pts</p>}
     </div>;
   } else {

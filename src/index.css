@@ -841,3 +841,34 @@ button.res:hover { background: var(--ivory-2); }
 .live-grid { grid-template-columns: 1fr; }
 .live-grid .kh-answer { min-height: 64px; }
 .live-pts { font: 700 1.8rem/1.2 var(--serif); color: var(--gold-ink); margin: 0.4rem 0 1rem; }
+
+/* ── Plans zoomables, zone cliquable, 3D, tableau BIM ───────── */
+.qview { display: grid; gap: 0.9rem; }
+.zoomimg-box { position: relative; overflow: hidden; display: flex; justify-content: center; background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius); }
+.zoomimg-inner { position: relative; margin: 0 auto; transform-origin: 0 0; max-width: 100%; }
+.zoomimg-inner img { display: block; width: 100%; height: 100%; object-fit: fill; user-select: none; -webkit-user-drag: none; pointer-events: none; }
+.zoomimg-tools { display: flex; gap: 0.4rem; justify-content: flex-end; margin-top: 0.4rem; }
+.zoomimg-tools .btn { min-width: 40px; min-height: 36px; font-size: 1rem; }
+.zoomimg-rect { position: absolute; border: 3px solid var(--green); background: rgba(21, 128, 61, 0.2); pointer-events: none; box-sizing: border-box; }
+.zoomimg-marker { position: absolute; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; border: 3px solid #fff; background: var(--primary); box-shadow: 0 0 0 2px var(--primary), 0 2px 6px rgba(0, 0, 0, 0.35); pointer-events: none; }
+.zoomimg-dot { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; border: 2px solid #fff; background: var(--red); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); pointer-events: none; }
+.zoomimg-dot[data-ok="true"] { background: var(--green); }
+.zone-editor-box { border: 1px solid var(--line-strong); border-radius: var(--radius-sm); margin-top: 0.4rem; overflow: hidden; }
+
+.model3d { position: relative; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; background: #f3f1ea; }
+.model3d-host { position: absolute; inset: 0; }
+.model3d-host canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.model3d-msg { position: absolute; inset: 0; display: grid; place-items: center; font-size: 0.9rem; color: var(--muted); }
+.model3d-hint { position: absolute; left: 0; right: 0; bottom: 0; padding: 0.35rem 0.6rem; font-size: 0.72rem; color: var(--muted); background: rgba(246, 244, 238, 0.85); pointer-events: none; text-align: center; }
+.model3d-loading { height: 240px; display: grid; place-items: center; color: var(--muted); }
+
+.bim-table { margin-bottom: 0.2rem; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.bim-table th { text-align: left; font-weight: 700; font-size: 0.78rem; color: var(--muted); padding: 0.4rem 0.8rem; width: 40%; text-transform: none; letter-spacing: 0; background: var(--ivory); border-bottom: 1px solid var(--line); }
+.bim-table td { padding: 0.4rem 0.8rem; white-space: normal; }
+.qview-zone, .qview-num { display: grid; gap: 0.5rem; }
+.qeditor-media { margin: 0.2rem 0 0.4rem; }
+.file-btn { cursor: pointer; }
+.library-login { margin-bottom: 1rem; }
+@media (min-width: 900px) {
+  .live-wrap.live-wide { max-width: 860px; }
+}

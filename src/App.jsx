@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "./supabase";
 import { LiveHost, LiveJoin, Roster, LiveChampionship } from "./Live";
+import { QuestionView } from "./QuizParts";
+import { QuestionEditor, ImportPanel, LibraryLogin } from "./QuizEditor";
+import { useLibrary } from "./hooks";
+import { emptyQuestion, answerSpec, isCorrectSolo, validateQuestion } from "./quizLogic";
 
 // ── XP SYSTEM ────────────────────────────────────────────────
 const LEVELS = [
@@ -93,6 +97,7 @@ const tint=c=>`${c}1f`; // ≈ 12 % d'opacité
 const edge=c=>`${c}59`; // ≈ 35 % d'opacité
 const tone=c=>({background:tint(c),color:ink(c),borderColor:edge(c)});
 const FILIERES={seconde:"Seconde",premiere:"Première",terminale:"Terminale"};
+const newId=()=>Date.now();
 const LETTRES=["A","B","C","D"];
 
 function Logo({size=36}){
@@ -662,7 +667,12 @@ function Kahoot({onAddXP}){
   const [chosen,setChosen]=useState(null);
   const [timer,setTimer]=useState(0);
   const [scores,setScores]=useState({});
-  const [manualQs,setManualQs]=useState([{q:"",answers:["","","",""],correct:0,time:30}]);
+  const [manualQs,setManualQs]=useState([emptyQuestion()]);
+  const [editingId,setEditingId]=useState(null);   // quiz de la bibliothèque en cours de modification
+  const [quizTheme,setQuizTheme]=useState("");
+  const [mine,setMine]=useState(null);              // réponse donnée à la question en cours (solo)
+  const [saveMsg,setSaveMsg]=useState("");
+  const lib=useLibrary();
   const [quizTitle,setQuizTitle]=useState("");
   const [quizFiliere,setQuizFiliere]=useState("terminale");
   const [iaTopique,setIaTopique]=useState("");
@@ -681,7 +691,7 @@ function Kahoot({onAddXP}){
 
   const startQuiz=(quiz)=>{
     const initScores={};STUDENTS.forEach(st=>{initScores[st.name]=0;});
-    setPlaying(quiz);setQIdx(0);setChosen(null);setScores(initScores);setTimer(quiz.questions[0]?.time||30);setMode("play");setCombo(0);
+    setPlaying(quiz);setQIdx(0);setChosen(null);setMine(null);setScores(initScores);setTimer(quiz.questions[0]?.time||30);setMode("play");setCombo(0);
   };
 
   useEffect(()=>{
@@ -690,11 +700,11 @@ function Kahoot({onAddXP}){
     return()=>clearInterval(timerRef.current);
   },[mode,qIdx,chosen]);
 
-  const answer=(idx)=>{
+  const resolve=(payload)=>{
     if(chosen!==null) return;
-    clearInterval(timerRef.current);setChosen(idx);
+    clearInterval(timerRef.current);setMine(payload);setChosen(payload.choice??0);
     const q=playing.questions[qIdx];
-    if(idx===q.correct){
+    if(isCorrectSolo(q,payload)){
       const newCombo=combo+1;setCombo(newCombo);
       onAddXP(XP_GAINS.kahoot_correct,"Kahoot — bonne réponse");
       if(newCombo===3)onAddXP(XP_GAINS.combo_3,"🔥 Combo x3 !");
@@ -706,7 +716,7 @@ function Kahoot({onAddXP}){
   const nextQ=()=>{
     const next=qIdx+1;
     if(next>=playing.questions.length){onAddXP(XP_GAINS.kahoot_win,"🏆 Quiz terminé !");setMode("result");return;}
-    setQIdx(next);setChosen(null);setTimer(playing.questions[next]?.time||30);
+    setQIdx(next);setChosen(null);setMine(null);setTimer(playing.questions[next]?.time||30);
   };
 
   const generateQuestions=async(text,fromCourse=false)=>{
@@ -746,19 +756,10 @@ function Kahoot({onAddXP}){
         <div className="kh-timer" role="timer" aria-label={`${timer} secondes restantes`} style={{color:timerColor}}>{timer}<small>s</small></div>
         <div className="kh-timebar" aria-hidden="true"><div key={qIdx} style={{width:`${Math.max(0,Math.min(100,(timer/(q.time||30))*100))}%`,background:timerColor}}/></div>
       </div>
-      <div className="kh-grid">
-        {(q.answers||[]).map((a,i)=>{
-          // Après la réponse : bonne réponse en vert, mauvais choix en rouge, les autres en pastel (texte toujours lisible).
-          const state=chosen===null?"idle":i===q.correct?"correct":i===chosen?"wrong":"muted";
-          return <button type="button" key={i} onClick={()=>answer(i)} disabled={chosen!==null} className="kh-answer" data-state={state} style={{"--kh":colors[i],...(state==="muted"?{background:`${colors[i]}33`}:{})}}>
-            <span className="kh-letter" aria-hidden="true">{state==="correct"?"✓":state==="wrong"?"✕":LETTRES[i]}</span>
-            <span className="kh-text">{a}</span>
-          </button>;
-        })}
-      </div>
+      <QuestionView key={qIdx} q={q} locked={chosen!==null} onAnswer={resolve} reveal={chosen!==null?{spec:answerSpec(q),mine}:null}/>
       {chosen!==null&&<>
-        <div className="banner" data-tone={chosen===q.correct?"ok":"ko"} role="status">
-          {chosen===q.correct?`✅ Correct ! +${XP_GAINS.kahoot_correct} XP`:"❌ Incorrect — bonne réponse : "+q.answers[q.correct]}
+        <div className="banner" data-tone={chosen!==-1&&isCorrectSolo(q,mine)?"ok":"ko"} role="status">
+          {chosen!==-1&&isCorrectSolo(q,mine)?`✅ Correct ! +${XP_GAINS.kahoot_correct} XP`:(chosen===-1?"⏱️ Temps écoulé":"❌ Incorrect")}
         </div>
         <Card style={{marginBottom:"1rem"}}>
           <div className="overline" style={{marginBottom:"0.3rem"}}>🏆 Scores</div>
@@ -795,14 +796,27 @@ function Kahoot({onAddXP}){
     </div>;
   }
 
+  if(mode==="import"){
+    return <ImportPanel onBack={()=>setMode("menu")} onUse={(qz)=>{setQuizTitle(qz.title);setQuizFiliere(qz.filiere);setQuizTheme(qz.theme||"");setManualQs(qz.questions);setEditingId(null);setSaveMsg("");setMode("manual");}}/>;
+  }
+
   if(mode==="manual"){
-    const addQ=()=>setManualQs(prev=>[...prev,{q:"",answers:["","","",""],correct:0,time:30}]);
-    const updQ=(i,field,val)=>setManualQs(prev=>prev.map((q,qi)=>qi===i?{...q,[field]:val}:q));
-    const updAns=(qi,ai,val)=>setManualQs(prev=>prev.map((q,i)=>i===qi?{...q,answers:q.answers.map((a,j)=>j===ai?val:a)}:q));
-    // Sans aucune question saisie, le quiz serait vide : les boutons d'enregistrement restent désactivés.
-    const canSave=manualQs.some(q=>q.q.trim());
+    const addQ=(type)=>setManualQs(prev=>[...prev,emptyQuestion(type)]);
+    const valid=manualQs.filter(q=>q.q.trim());
+    const issues=valid.flatMap((q,i)=>validateQuestion(q).map(m=>`Q${i+1} : ${m}`));
+    const canSave=valid.length>0&&issues.length===0;
+    const buildQuiz=()=>({id:editingId||newId(),saved:!!editingId,title:quizTitle||"Quiz sans titre",filiere:quizFiliere,theme:quizTheme,questions:valid});
+    // Enregistre dans la bibliothèque si elle est connectée, sinon seulement sur cet écran
+    const persist=async()=>{
+      const qz=buildQuiz();
+      if(lib.ready){
+        try{const saved=await lib.save(qz);setSaveMsg("✅ Quiz enregistré dans ta bibliothèque");return saved;}
+        catch(e){setSaveMsg("⚠️ Enregistrement impossible : "+(e.message||"erreur"));return null;}
+      }
+      setQuizzes(p=>[...p.filter(x=>x.id!==qz.id),qz]);setSaveMsg("Quiz gardé jusqu'au rechargement de la page (connecte la bibliothèque pour le conserver)");return qz;
+    };
     return <div>
-      <PageHeader small icon="✏️" title="Créer un quiz" back={<Btn onClick={()=>setMode("menu")} variant="secondary" sm>← Retour</Btn>}/>
+      <PageHeader small icon="✏️" title={editingId?"Modifier le quiz":"Créer un quiz"} back={<Btn onClick={()=>{setMode("menu");setSaveMsg("");}} variant="secondary" sm>← Retour</Btn>}/>
       <Card style={{marginBottom:"1rem"}}>
         <div className="grid-2 stack-sm" style={{gap:"0.8rem"}}>
           <div><Label htmlFor="quiz-titre">Titre</Label><input id="quiz-titre" className="field" placeholder="Titre du quiz..." value={quizTitle} onChange={e=>setQuizTitle(e.target.value)}/></div>
@@ -814,30 +828,21 @@ function Kahoot({onAddXP}){
         </div>
       </Card>
       {manualQs.map((mq,qi)=>(
-        <Card key={qi} style={{marginBottom:"0.8rem"}}>
-          <div className="overline" style={{color:"#8c2f39",marginBottom:"0.6rem"}}>Question {qi+1}</div>
-          <input className="field" style={{marginBottom:"0.6rem"}} aria-label={`Énoncé de la question ${qi+1}`} placeholder="Tapez votre question..." value={mq.q} onChange={e=>updQ(qi,"q",e.target.value)}/>
-          <div className="chip-row" role="group" aria-label={`Temps de réponse de la question ${qi+1}`} style={{marginBottom:"0.7rem"}}>
-            <span className="hint">Temps :</span>
-            {[15,20,30,45,60].map(t=><Chip key={t} active={mq.time===t} onClick={()=>updQ(qi,"time",t)}>{t}s</Chip>)}
-          </div>
-          <div className="grid-2 stack-sm" style={{gap:"0.5rem"}}>
-            {mq.answers.map((a,ai)=>(
-              <div key={ai} className="answer-edit" data-correct={mq.correct===ai}>
-                <span className="dot" style={{background:colors[ai]}} aria-hidden="true"/>
-                <input aria-label={`Réponse ${LETTRES[ai]} de la question ${qi+1}`} placeholder={`Réponse ${LETTRES[ai]}`} value={a} onChange={e=>updAns(qi,ai,e.target.value)}/>
-                <button type="button" className="answer-check" aria-pressed={mq.correct===ai} aria-label={`Réponse ${LETTRES[ai]} : bonne réponse`} title="Marquer comme bonne réponse" onClick={()=>updQ(qi,"correct",ai)}>✓</button>
-              </div>
-            ))}
-          </div>
-        </Card>
+        <QuestionEditor key={qi} q={mq} index={qi} canRemove={manualQs.length>1}
+          onChange={nq=>setManualQs(prev=>prev.map((x,i)=>i===qi?nq:x))}
+          onRemove={()=>setManualQs(prev=>prev.filter((_,i)=>i!==qi))}/>
       ))}
-      <div className="btn-row">
-        <Btn onClick={addQ} variant="secondary">+ Ajouter question</Btn>
-        <Btn disabled={!canSave} onClick={()=>{const q={id:Date.now(),title:quizTitle||"Quiz sans titre",filiere:quizFiliere,questions:manualQs.filter(q=>q.q.trim())};setQuizzes(p=>[...p,q]);startQuiz(q);}}>💾 Sauver & Lancer</Btn>
-        <Btn disabled={!canSave} onClick={()=>{const q={id:Date.now(),title:quizTitle||"Quiz sans titre",filiere:quizFiliere,questions:manualQs.filter(q=>q.q.trim())};setQuizzes(p=>[...p,q]);setMode("menu");}} variant="secondary">💾 Sauver seulement</Btn>
+      <div className="btn-row" style={{marginBottom:"1rem"}}>
+        <Btn onClick={()=>addQ("qcm")} variant="secondary">+ QCM</Btn>
+        <Btn onClick={()=>addQ("zone")} variant="secondary">+ Clic sur le plan</Btn>
+        <Btn onClick={()=>addQ("num")} variant="secondary">+ Valeur numérique</Btn>
       </div>
-      {!canSave&&<p className="hint" style={{marginTop:"0.6rem"}}>Saisissez au moins une question pour enregistrer le quiz.</p>}
+      <div className="btn-row">
+        <Btn disabled={!canSave} onClick={async()=>{const qz=await persist();if(qz){setQuizzes(p=>p.some(x=>x.id===qz.id)?p:[...p,qz]);startQuiz(qz);}}}>💾 Sauver & Lancer (solo)</Btn>
+        <Btn disabled={!canSave} onClick={async()=>{const qz=await persist();if(qz){setEditingId(qz.saved?qz.id:null);}}} variant="secondary">💾 Sauver seulement</Btn>
+      </div>
+      {saveMsg&&<p className="hint" role="status" style={{marginTop:"0.6rem"}}>{saveMsg}</p>}
+      {!canSave&&<p className="hint" style={{marginTop:"0.6rem"}}>{valid.length===0?"Saisissez au moins une question pour enregistrer le quiz.":`À compléter : ${issues.join(" · ")}`}</p>}
     </div>;
   }
 
@@ -926,16 +931,17 @@ function Kahoot({onAddXP}){
     <PageHeader icon="🎮" title="Kahoot" subtitle="Créez et lancez des quiz interactifs"/>
     <Callout>⭐ +{XP_GAINS.kahoot_correct} XP par bonne réponse · +{XP_GAINS.kahoot_win} XP à la fin · Bonus combo !</Callout>
     <div className="grid-auto" style={{"--min":"200px",marginBottom:"2rem"}}>
-      {[["✏️","Manuel","Tapez vos propres questions","manual","#8c2f39"],["🤖","IA","L'IA génère les questions","ia","#6d28d9"],["📄","Depuis cours","Collez votre cours","pdf","#15803d"]].map(([icon,title,sub,m,col])=>(
-        <button type="button" key={m} onClick={()=>setMode(m)} className="mode-card" style={{"--accent":col}}>
+      {[["✏️","Manuel","Questions, plans, 3D","manual","#8c2f39"],["📥","Import ChatGPT","Colle le JSON de tes QCM","import","#0e7490"],["🤖","IA","L'IA génère les questions","ia","#6d28d9"],["📄","Depuis cours","Collez votre cours","pdf","#15803d"]].map(([icon,title,sub,m,col])=>(
+        <button type="button" key={m} onClick={()=>{if(m==="manual"){setEditingId(null);setManualQs([emptyQuestion()]);setQuizTitle("");setQuizTheme("");setSaveMsg("");}setMode(m);}} className="mode-card" style={{"--accent":col}}>
           <span className="mode-icon" aria-hidden="true">{icon}</span>
           <span className="mode-title">{title}</span>
           <span className="mode-sub">{sub}</span>
         </button>
       ))}
     </div>
-    <SectionTitle action={<Btn onClick={()=>setMode("manual")} sm>+ Nouveau</Btn>}>📋 Quiz sauvegardés</SectionTitle>
-    {quizzes.map(q=>(
+    {!lib.ready&&<LibraryLogin lib={lib}/>}
+    <SectionTitle action={<Btn onClick={()=>{setEditingId(null);setManualQs([emptyQuestion()]);setQuizTitle("");setQuizTheme("");setSaveMsg("");setMode("manual");}} sm>+ Nouveau</Btn>}>📋 Quiz sauvegardés</SectionTitle>
+    {[...(lib.items||[]),...quizzes.filter(x=>!(lib.items||[]).some(y=>y.id===x.id))].map(q=>(
       <Card key={q.id} className="quiz-row">
         <div className="quiz-row-text">
           <div className="quiz-row-title">{q.title}</div>
@@ -944,6 +950,8 @@ function Kahoot({onAddXP}){
         <div className="btn-row">
           <Btn onClick={()=>setLiveQuiz(q)} sm color="#a16207">📡 Live</Btn>
           <Btn onClick={()=>startQuiz(q)} sm variant="secondary">▶ Solo</Btn>
+          <Btn onClick={()=>{setQuizTitle(q.title);setQuizFiliere(q.filiere||"terminale");setQuizTheme(q.theme||"");setManualQs(q.questions.map(x=>({...emptyQuestion(x.type||"qcm"),...x})));setEditingId(q.saved?q.id:null);setSaveMsg("");setMode("manual");}} sm variant="secondary" aria-label={`Modifier ${q.title}`}>✏️</Btn>
+          {q.saved&&<Btn onClick={()=>{if(window.confirm(`Supprimer « ${q.title} » ?`))lib.remove(q.id);}} sm variant="secondary" aria-label={`Supprimer ${q.title}`}>🗑</Btn>}
         </div>
       </Card>
     ))}
