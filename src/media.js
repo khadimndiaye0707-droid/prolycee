@@ -43,6 +43,7 @@ export async function pdfToBlob(file, pageNum = 1, targetWidth = 2400) {
 // ── IFC → scène Three.js : une maille par couleur (peu d'objets = fluide sur téléphone) ──
 export async function ifcBytesToScene(bytes, { wasmPath, THREE, WebIFC, onProgress } = {}) {
   const T = THREE || (await import("three"));
+  const { mergeVertices } = await import("three/examples/jsm/utils/BufferGeometryUtils.js");
   const W = WebIFC || (await import("web-ifc"));
   const api = new W.IfcAPI();
   api.SetWasmPath(wasmPath, true);
@@ -65,7 +66,6 @@ export async function ifcBytesToScene(bytes, { wasmPath, THREE, WebIFC, onProgre
       const base = g.count;
       for (let p = 0; p < verts.length; p += 6) {
         v.set(verts[p], verts[p + 1], verts[p + 2]).applyMatrix4(m4); g.pos.push(v.x, v.y, v.z);
-        v.set(verts[p + 3], verts[p + 4], verts[p + 5]).applyMatrix3(n3).normalize(); g.nor.push(v.x, v.y, v.z);
       }
       for (let p = 0; p < index.length; p++) g.idx.push(index[p] + base);
       g.count += verts.length / 6;
@@ -77,10 +77,12 @@ export async function ifcBytesToScene(bytes, { wasmPath, THREE, WebIFC, onProgre
   for (const g of groups.values()) {
     const bg = new T.BufferGeometry();
     bg.setAttribute("position", new T.Float32BufferAttribute(g.pos, 3));
-    bg.setAttribute("normal", new T.Float32BufferAttribute(g.nor, 3));
     bg.setIndex(g.idx);
+    // Sans normales + soudure des sommets (1 mm) : GLB beaucoup plus léger ; l'ombrage « facettes » est calculé à l'affichage
+    const light = mergeVertices(bg, 0.001);
+    bg.dispose();
     const [r, gr, b, a] = g.color;
-    scene.add(new T.Mesh(bg, new T.MeshStandardMaterial({ color: new T.Color(r, gr, b), transparent: a < 1, opacity: a, side: T.DoubleSide, roughness: 0.85, metalness: 0 })));
+    scene.add(new T.Mesh(light, new T.MeshStandardMaterial({ flatShading: true, color: new T.Color(r, gr, b), transparent: a < 1, opacity: a, side: T.DoubleSide, roughness: 0.85, metalness: 0 })));
   }
   return scene;
 }

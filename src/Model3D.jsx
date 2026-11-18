@@ -31,6 +31,7 @@ export default function Model3D({ url, height = "min(52vh, 440px)" }) {
     new GLTFLoader().load(url, (gltf) => {
       if (disposed) return;
       const model = gltf.scene; scene.add(model);
+      model.traverse((o) => { if (o.isMesh && !o.geometry.attributes.normal) [].concat(o.material).forEach((m) => { m.flatShading = true; m.needsUpdate = true; }); });
       const box = new THREE.Box3().setFromObject(model);
       const size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
       const r = Math.max(size.x, size.y, size.z) || 1;
