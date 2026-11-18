@@ -283,3 +283,57 @@ do $$ declare t text; begin
     end if;
   end loop;
 end $$;
+
+-- ── 7. Tug of War (équipes, chacun à son rythme) ─────────────────
+alter table live_games drop constraint if exists live_games_mode_check;
+alter table live_games add constraint live_games_mode_check check (mode in ('competition','revision','tug'));
+alter table live_games add column if not exists questions jsonb;            -- questions SANS réponses (mode tug)
+alter table live_players add column if not exists team text check (team in ('A','B'));
+
+create table if not exists live_secrets (game_id uuid primary key references live_games(id) on delete cascade, specs jsonb not null);
+alter table live_secrets enable row level security;                         -- aucune policy : illisible côté client
+
+create or replace function host_set_team(p_secret text, p_player uuid, p_team text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform _check_prof(p_secret);
+  update live_players set team = nullif(p_team, '') where id = p_player;
+end $$;
+
+create or replace function host_tug_start(p_secret text, p_game uuid, p_public jsonb, p_specs jsonb) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  perform _check_prof(p_secret);
+  insert into live_secrets (game_id, specs) values (p_game, p_specs)
+    on conflict (game_id) do update set specs = excluded.specs;
+  update live_games set questions = p_public, status = 'question', q_index = 0, q_started_at = now() where id = p_game;
+end $$;
+
+create or replace function submit_tug_answer(p_player uuid, p_q int, p_choice int, p_ms int,
+                                             p_x numeric default null, p_y numeric default null, p_value numeric default null)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare g live_games; v_game uuid; v_spec jsonb; v_type text; v_ok boolean;
+begin
+  select game_id into v_game from live_players where id = p_player;
+  select * into g from live_games where id = v_game;
+  if not found or g.mode <> 'tug' or g.status <> 'question' then return null; end if;
+  if exists (select 1 from live_answers where player_id = p_player and q_index = p_q) then return null; end if;
+  select specs -> p_q into v_spec from live_secrets where game_id = g.id;
+  if v_spec is null then return null; end if;
+  v_type := coalesce(v_spec->>'type', 'qcm');
+  v_ok := case
+    when v_type = 'zone' then p_x is not null and p_y is not null
+      and p_x between (v_spec->>'x')::numeric and (v_spec->>'x')::numeric + (v_spec->>'w')::numeric
+      and p_y between (v_spec->>'y')::numeric and (v_spec->>'y')::numeric + (v_spec->>'h')::numeric
+    when v_type = 'num' then p_value is not null
+      and abs(p_value - (v_spec->>'value')::numeric) <= coalesce((v_spec->>'tol')::numeric, 0)
+    else p_choice is not null and p_choice = (v_spec->>'correct')::int
+  end;
+  insert into live_answers (game_id, player_id, q_index, choice, ms, correct, points, x, y, value)
+    values (g.id, p_player, p_q, p_choice, greatest(p_ms, 0), v_ok, 0,
+            least(greatest(p_x, 0), 1), least(greatest(p_y, 0), 1), p_value)
+    on conflict (player_id, q_index) do nothing;
+  return jsonb_build_object('correct', v_ok, 'spec', v_spec);
+end $$;
+
+-- join_game : pseudo autorisé aussi pour le Tug of War (déjà vrai : seule la compétition exige le code)

@@ -872,3 +872,12 @@ button.res:hover { background: var(--ivory-2); }
 @media (min-width: 900px) {
   .live-wrap.live-wide { max-width: 860px; }
 }
+
+/* Tug of War */
+.tug-rope{display:flex;align-items:center;gap:.6rem;margin:.6rem 0}
+.tug-end{font-weight:700;font-size:.85rem;white-space:nowrap}
+.tug-line{position:relative;flex:1;height:10px;border-radius:6px;background:repeating-linear-gradient(90deg,#b08968 0 8px,#9c7653 8px 16px)}
+.tug-mid{position:absolute;left:50%;top:-6px;bottom:-6px;width:3px;background:#222}
+.tug-knot{position:absolute;top:50%;transform:translate(-50%,-50%);font-size:1.6rem;transition:left .6s ease}
+.tug-pick{display:flex;gap:.4rem}
+@media (max-width:520px){.tug-end{font-size:.7rem;white-space:normal;max-width:4.5rem;text-align:center}}

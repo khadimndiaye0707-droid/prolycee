@@ -14,7 +14,36 @@ const CLASSES = { seconde: "🏛️ Seconde", premiere: "📐 1ère TBAA", termi
 const MODES = {
   competition: { icon: "🏆", label: "Compétition", sub: "Classement en direct, points cumulés au championnat" },
   revision: { icon: "📖", label: "Révision", sub: "Sans classement, sans pression, pas de points de championnat" },
+  tug: { icon: "🪢", label: "Tug of War", sub: "Deux équipes : chaque bonne réponse tire la corde de ton côté" },
 };
+const TEAMS = { A: { name: "Équipe Bleue", color: "#0e7490", dot: "🔵" }, B: { name: "Équipe Rouge", color: "#c81e3a", dot: "🔴" } };
+const tugMax = (n) => Math.max(3, Math.round((n || 10) * 0.4));   // écart de bonnes réponses (par élève) qui fait gagner
+
+// Position de la corde : bonnes réponses de l'équipe A (par élève) moins celles de l'équipe B
+function tugState(players, answers, max) {
+  const size = { A: players.filter((p) => p.team === "A").length, B: players.filter((p) => p.team === "B").length };
+  const team = Object.fromEntries(players.map((p) => [p.id, p.team]));
+  const byQ = new Map();
+  answers.forEach((a) => {
+    const t = team[a.player_id];
+    if (a.correct == null || !t) return;
+    const o = byQ.get(a.q_index) || { A: 0, B: 0 };
+    if (a.correct) o[t] += 1;
+    byQ.set(a.q_index, o);
+  });
+  let raw = 0;
+  byQ.forEach((o) => { raw += (size.A ? o.A / size.A : 0) - (size.B ? o.B / size.B : 0); });
+  return { raw, max, pos: Math.max(-max, Math.min(max, raw)), size, won: Math.abs(raw) >= max, leader: raw > 0 ? "A" : raw < 0 ? "B" : null };
+}
+
+function Rope({ pos, max }) {
+  const pct = 50 + (pos / max) * 50;
+  return <div className="tug-rope" role="img" aria-label={pos === 0 ? "Corde au centre" : `Corde du côté de l'${pos > 0 ? TEAMS.A.name : TEAMS.B.name}`}>
+    <span className="tug-end" style={{ color: TEAMS.A.color }}>{TEAMS.A.dot} {TEAMS.A.name}</span>
+    <div className="tug-line"><div className="tug-mid" /><div className="tug-knot" style={{ left: `${pct}%` }}>🪢</div></div>
+    <span className="tug-end" style={{ color: TEAMS.B.color }}>{TEAMS.B.name} {TEAMS.B.dot}</span>
+  </div>;
+}
 
 const now = () => Date.now();
 const errText = (e) => (e && e.message ? e.message : "Erreur de connexion");
@@ -56,7 +85,7 @@ export function LiveHost({ quiz, onExit }) {
   const refresh = useCallback(async () => {
     if (!gid) return;
     const [p, a, t] = await Promise.all([
-      supabase.from("live_players").select("id,nom,roster_id").eq("game_id", gid).order("created_at"),
+      supabase.from("live_players").select("id,nom,roster_id,team").eq("game_id", gid).order("created_at"),
       supabase.from("live_answers").select("player_id,q_index,choice,correct,points,x,y,value").eq("game_id", gid),
       supabase.from("live_totals").select("*").eq("game_id", gid).order("total", { ascending: false }),
     ]);
@@ -92,6 +121,21 @@ export function LiveHost({ quiz, onExit }) {
         p_classe: classe === "all" ? "" : classe, p_total: quiz.questions.length,
       });
       setGame(g);
+    } catch (e) { setError(errText(e)); }
+    setBusy(false);
+  };
+
+  const setTeam = async (pid, team) => {
+    setPlayers((ps) => ps.map((p) => (p.id === pid ? { ...p, team: team || null } : p)));
+    try { await rpc("host_set_team", { p_secret: secret, p_player: pid, p_team: team || "" }); }
+    catch (e) { setError(errText(e)); refresh(); }
+  };
+
+  const startTug = async () => {
+    setBusy(true); setError("");
+    try {
+      await rpc("host_tug_start", { p_secret: secret, p_game: gid, p_public: quiz.questions.map(publicQuestion), p_specs: quiz.questions.map(answerSpec) });
+      setGame((g) => ({ ...g, status: "question", q_index: 0 }));
     } catch (e) { setError(errText(e)); }
     setBusy(false);
   };
@@ -134,7 +178,7 @@ export function LiveHost({ quiz, onExit }) {
 
   // Compte à rebours ; correction automatique à 0
   useEffect(() => {
-    if (status !== "question") return;
+    if (status !== "question" || game?.mode === "tug") return;
     const iv = setInterval(() => {
       setTimer((t) => {
         if (t <= 1) { clearInterval(iv); setTimeout(() => revealRef.current && revealRef.current(), 0); return 0; }
@@ -142,17 +186,29 @@ export function LiveHost({ quiz, onExit }) {
       });
     }, 1000);
     return () => clearInterval(iv);
-  }, [status, qIdx]);
+  }, [status, qIdx, game?.mode]);
 
   const answersQ = answers.filter((a) => a.q_index === qIdx);
+  const unassigned = players.filter((p) => !p.team).length;
+  const tug = tugState(players, answers, tugMax(quiz.questions.length));
+  const tugDone = players.length > 0 ? players.filter((p) => answers.filter((a) => a.player_id === p.id).length >= quiz.questions.length).length : 0;
+  const tugReady = players.length > 0 && unassigned === 0 && tug.size.A > 0 && tug.size.B > 0;
 
   // Correction anticipée dès que tout le monde a répondu
   useEffect(() => {
-    if (status === "question" && players.length > 0 && answersQ.length >= players.length) {
+    if (status === "question" && game?.mode !== "tug" && players.length > 0 && answersQ.length >= players.length) {
       const t = setTimeout(() => revealRef.current && revealRef.current(), 700);
       return () => clearTimeout(t);
     }
-  }, [status, players.length, answersQ.length]);
+  }, [status, players.length, answersQ.length, game?.mode]);
+
+  // Tug of War : la partie s'arrête quand la corde est tirée au bout ou quand tous ont terminé
+  useEffect(() => {
+    if (game?.mode === "tug" && status === "question" && (tug.won || (players.length > 0 && tugDone >= players.length))) {
+      const t = setTimeout(() => finish(), 1200);
+      return () => clearTimeout(t);
+    }
+  }, [game?.mode, status, tug.won, tugDone, players.length]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const header = (title) => (
     <header className="page-head" data-size="sm">
@@ -186,7 +242,7 @@ export function LiveHost({ quiz, onExit }) {
             {Object.entries(CLASSES).map(([k, label]) => (
               <button type="button" key={k} className="chip" aria-pressed={classe === k} onClick={() => setClasse(k)}>{label}</button>
             ))}
-            {mode === "revision" && <button type="button" className="chip" aria-pressed={classe === "all"} onClick={() => setClasse("all")}>Toutes</button>}
+            {mode !== "competition" && <button type="button" className="chip" aria-pressed={classe === "all"} onClick={() => setClasse("all")}>Toutes</button>}
           </div>
         </div>
         <div className="form-row">
@@ -211,13 +267,49 @@ export function LiveHost({ quiz, onExit }) {
       </div>
       <div className="card" style={{ margin: "1rem 0" }}>
         <div className="overline" style={{ marginBottom: "0.6rem" }}>👥 {players.length} connecté{players.length > 1 ? "s" : ""}</div>
-        <div className="live-players">
+        {game.mode === "tug" ? <div className="tug-teams">
+          {players.map((p) => <div key={p.id} className="score-row">
+            <span className="score-name">{p.nom}</span>
+            <span className="tug-pick" role="group" aria-label={`Équipe de ${p.nom}`}>
+              {["A", "B"].map((t) => <button type="button" key={t} className="btn btn-sm" aria-pressed={p.team === t}
+                style={p.team === t ? { background: TEAMS[t].color, color: "#fff", borderColor: TEAMS[t].color } : { borderColor: TEAMS[t].color, color: TEAMS[t].color }}
+                onClick={() => setTeam(p.id, p.team === t ? "" : t)}>{TEAMS[t].dot} {t === "A" ? "Bleue" : "Rouge"}</button>)}
+            </span>
+          </div>)}
+          {players.length === 0 && <span className="hint">En attente des élèves…</span>}
+          <p className="hint" style={{ marginTop: "0.6rem" }}>🔵 {players.filter((p) => p.team === "A").length} · 🔴 {players.filter((p) => p.team === "B").length}{unassigned > 0 ? ` · ⚠ ${unassigned} sans équipe` : ""}</p>
+        </div> : <div className="live-players">
           {players.map((p) => <span key={p.id} className="badge live-player">{p.nom}</span>)}
           {players.length === 0 && <span className="hint">En attente des élèves…</span>}
-        </div>
+        </div>}
       </div>
       {error && <div className="alert" role="alert">{error}</div>}
-      <button type="button" className="btn btn-primary btn-lg" disabled={busy || players.length === 0} onClick={() => askQuestion(0)}>▶ Lancer la 1ère question</button>
+      <button type="button" className="btn btn-primary btn-lg" disabled={busy || players.length === 0 || (game.mode === "tug" && !tugReady)} onClick={() => (game.mode === "tug" ? startTug() : askQuestion(0))}>{game.mode === "tug" && !tugReady ? "Place chaque élève dans une équipe" : "▶ Lancer la 1ère question"}</button>
+    </div>;
+  }
+
+  // ── Tug of War en cours (chaque élève avance à son rythme) ──
+  if (status === "question" && game.mode === "tug") {
+    const nbQ = quiz.questions.length;
+    const teamOk = (t) => answers.filter((a) => a.correct && players.find((p) => p.id === a.player_id)?.team === t).length;
+    return <div>
+      {header(game.titre)}
+      <div className="card" style={{ margin: "1rem 0" }}>
+        <Rope pos={tug.pos} max={tug.max} />
+        <p className="hint" style={{ textAlign: "center" }}>Bonnes réponses : 🔵 {teamOk("A")} · 🔴 {teamOk("B")} — la corde s'arrête à ±{tug.max} bonnes réponses par élève</p>
+      </div>
+      <div className="card">
+        <div className="overline" style={{ marginBottom: "0.4rem" }}>Avancement ({nbQ} questions)</div>
+        {players.map((p) => {
+          const n = answers.filter((a) => a.player_id === p.id).length;
+          return <div key={p.id} className="score-row">
+            <span className="score-name">{p.team ? TEAMS[p.team].dot : "⚪"} {p.nom}</span>
+            <span className="score-pts num">{Math.min(n, nbQ)}/{nbQ}</span>
+          </div>;
+        })}
+      </div>
+      {error && <div className="alert" role="alert">{error}</div>}
+      <button type="button" className="btn btn-secondary" style={{ marginTop: "1rem" }} onClick={finish}>Terminer maintenant 🏁</button>
     </div>;
   }
 
@@ -295,7 +387,11 @@ export function LiveHost({ quiz, onExit }) {
   return <div className="result">
     <div className="result-emoji" aria-hidden="true">🏆</div>
     <h1 className="page-title" style={{ marginBottom: "1rem" }}>Partie terminée</h1>
-    <div className="card" style={{ textAlign: "left", marginBottom: "1.5rem" }}>
+    {game.mode === "tug" && <div className="card" style={{ marginBottom: "1.5rem" }}>
+      <Rope pos={tug.pos} max={tug.max} />
+      <h2 className="section-title" style={{ textAlign: "center", color: tug.leader ? TEAMS[tug.leader].color : undefined }}>{tug.leader ? `${TEAMS[tug.leader].dot} ${TEAMS[tug.leader].name} gagne !` : "Égalité !"}</h2>
+    </div>}
+    {game.mode !== "tug" && <div className="card" style={{ textAlign: "left", marginBottom: "1.5rem" }}>
       <h2 className="section-title" style={{ marginBottom: "0.6rem" }}>{game.mode === "competition" ? "Classement final" : "Résultats de la révision"}</h2>
       {totals.map((t, i) => (
         <div key={t.player_id} className="score-row">
@@ -304,7 +400,7 @@ export function LiveHost({ quiz, onExit }) {
           <span className="score-pts num">{game.mode === "competition" ? `${t.total} pts` : `${t.bonnes}/${nbQ} bonnes réponses`}</span>
         </div>
       ))}
-    </div>
+    </div>}
     {game.mode === "competition" && <p className="hint" style={{ marginBottom: "1rem" }}>Ces points sont ajoutés au championnat.</p>}
     <button type="button" className="btn btn-primary" onClick={onExit}>← Retour aux quiz</button>
   </div>;
@@ -328,6 +424,11 @@ export function LiveJoin() {
   const [busy, setBusy] = useState(false);
   const shownAt = useRef(0);
   const lastQ = useRef(-2);
+  const [team, setTeam] = useState(null);          // Tug of War : mon équipe
+  const [tugView, setTugView] = useState(null);    // Tug of War : état de la corde
+  const [myN, setMyN] = useState(0);               // Tug of War : nombre de questions déjà traitées
+  const [tugRes, setTugRes] = useState(null);      // Tug of War : retour sur ma dernière réponse
+  const tugSent = useRef(-1);
 
   const gid = me?.game_id;
 
@@ -343,7 +444,7 @@ export function LiveJoin() {
     setBusy(false);
   };
 
-  const leave = () => { sessionStorage.removeItem("prolycee_live_me"); setMe(null); setGame(null); setChosen(null); setResult(null); setRank(null); lastQ.current = -2; };
+  const leave = () => { sessionStorage.removeItem("prolycee_live_me"); setMe(null); setGame(null); setChosen(null); setResult(null); setRank(null); lastQ.current = -2; setTeam(null); setTugView(null); setMyN(0); setTugRes(null); tugSent.current = -1; };
 
   const applyGame = useCallback((g) => {
     setGame((prev) => (prev && JSON.stringify(prev) === JSON.stringify(g) ? prev : g));
@@ -355,6 +456,18 @@ export function LiveJoin() {
     const load = async () => {
       const { data } = await supabase.from("live_games").select("*").eq("id", gid).single();
       if (data) applyGame(data);
+      if (data?.mode === "tug") {
+        const [pl, an] = await Promise.all([
+          supabase.from("live_players").select("id,team").eq("game_id", gid),
+          supabase.from("live_answers").select("player_id,q_index,correct").eq("game_id", gid),
+        ]);
+        if (pl.data && an.data) {
+          const mine = pl.data.find((x) => x.id === me.player_id);
+          setTeam(mine?.team || null);
+          setTugView(tugState(pl.data, an.data, tugMax(data.total)));
+          setMyN((n) => Math.max(n, an.data.filter((a) => a.player_id === me.player_id).length));
+        }
+      }
     };
     load();
     const ch = supabase.channel(`play-${gid}`)
@@ -362,7 +475,7 @@ export function LiveJoin() {
       .subscribe();
     const iv = setInterval(load, 2000);
     return () => { clearInterval(iv); supabase.removeChannel(ch); };
-  }, [gid, applyGame]);
+  }, [gid, applyGame, me?.player_id]);
 
   // Nouvelle question : on réinitialise et on lance le chrono
   useEffect(() => {
@@ -407,7 +520,35 @@ export function LiveJoin() {
     if (e) setError(errText(e));
   };
 
+  // Tug of War : réponse à ma question courante (la correction est faite côté serveur)
+  const tugAnswer = async (payload) => {
+    if (tugSent.current === myN) return;
+    tugSent.current = myN;
+    const idx = myN;
+    const ms = now() - shownAt.current;
+    const { data, error: e } = await supabase.rpc("submit_tug_answer", {
+      p_player: me.player_id, p_q: idx, p_choice: payload.choice ?? null, p_ms: ms,
+      p_x: payload.x ?? null, p_y: payload.y ?? null, p_value: payload.value ?? null,
+    });
+    if (e) { setError(errText(e)); tugSent.current = -1; return; }
+    if (data) setTugRes({ idx, payload, correct: data.correct, spec: data.spec });
+    else setMyN((n) => n + 1);
+  };
+  const tugNext = () => { setTugRes(null); setMyN((n) => n + 1); };
+
+  // Chrono personnel de la question courante (Tug of War)
+  useEffect(() => {
+    if (game?.mode !== "tug" || game.status !== "question" || tugRes) return;
+    shownAt.current = now();
+    const t = game.questions?.[myN]?.time || 30;
+    setTimer(t);   // eslint-disable-line react-hooks/set-state-in-effect
+    const iv = setInterval(() => setTimer((x) => Math.max(0, x - 1)), 1000);
+    const to = setTimeout(() => tugAnswer({}), t * 1000 + 300);
+    return () => { clearInterval(iv); clearTimeout(to); };
+  }, [game?.mode, game?.status, myN, tugRes]);   // eslint-disable-line react-hooks/exhaustive-deps
+
   const competition = (game?.mode || me?.mode) === "competition";
+  const isTug = (game?.mode || me?.mode) === "tug";
 
   let body;
   if (!me) {
@@ -429,6 +570,37 @@ export function LiveJoin() {
     </form>;
   } else if (!game) {
     body = <p className="live-wait" role="status">⏳ Connexion…</p>;
+  } else if (isTug && game.status === "lobby") {
+    body = <div className="live-center"><div className="result-emoji" aria-hidden="true">🪢</div><h2 className="page-title">{me.nom}</h2>
+      {team ? <p className="banner" data-tone="ok" style={{ borderColor: TEAMS[team].color }}>Tu es dans l'<b style={{ color: TEAMS[team].color }}>{TEAMS[team].dot} {TEAMS[team].name}</b></p>
+        : <p className="hint">Le prof va te placer dans une équipe…</p>}
+      <p className="hint">Regarde l'écran : la partie va bientôt commencer.</p></div>;
+  } else if (isTug && game.status === "question") {
+    const qs = game.questions || [];
+    const qq = qs[myN];
+    const timerColor = timer <= 5 ? "#c81e3a" : timer <= 10 ? "#a16207" : "#8c2f39";
+    body = !team ? <p className="live-wait" role="status">⏳ Le prof te place dans une équipe…</p>
+      : <div>
+        <p className="banner" data-tone="neutral" style={{ borderColor: TEAMS[team].color }}>{TEAMS[team].dot} {TEAMS[team].name}</p>
+        {tugView && <Rope pos={tugView.pos} max={tugView.max} />}
+        {!qq ? <div className="live-center" role="status"><div className="result-emoji" aria-hidden="true">🏁</div><p><b>Tu as terminé !</b></p><p className="hint">Regarde la corde, ton équipe compte sur les autres.</p></div>
+          : tugRes ? <div>
+            <div className="live-center" role="status">{tugRes.correct ? <><div className="result-emoji" aria-hidden="true">💪</div><h2 className="page-title">Tu tires la corde !</h2></> : <><div className="result-emoji" aria-hidden="true">😅</div><h2 className="page-title">Raté…</h2></>}</div>
+            <div style={{ textAlign: "left" }}><QuestionView key={`t${myN}`} q={qq} locked reveal={{ spec: tugRes.spec, mine: { ...tugRes.payload, correct: tugRes.correct } }} /></div>
+            <button type="button" className="btn btn-primary btn-lg btn-block" style={{ marginTop: "0.8rem" }} onClick={tugNext}>{myN + 1 >= qs.length ? "Terminer" : "Question suivante →"}</button>
+          </div> : <div>
+            <div className="live-qhead"><span className="page-meta num">Question {myN + 1}/{qs.length}</span><span className="kh-timer-sm num" style={{ color: timerColor }}>{timer}s</span></div>
+            <h2 className="kh-q live-q">{qq.q}</h2>
+            <QuestionView key={`q${myN}`} q={qq} onAnswer={tugAnswer} />
+          </div>}
+        {error && <div className="alert" role="alert">{error}</div>}
+      </div>;
+  } else if (isTug && game.status === "finished") {
+    const win = tugView?.leader;
+    body = <div className="live-center" role="status"><div className="result-emoji" aria-hidden="true">🏁</div><h2 className="page-title">Partie terminée !</h2>
+      {tugView && <Rope pos={tugView.pos} max={tugView.max} />}
+      {win ? <p className="banner" data-tone={win === team ? "ok" : "neutral"}>{win === team ? "🎉 Ton équipe a gagné !" : `${TEAMS[win].dot} ${TEAMS[win].name} gagne.`}</p> : <p className="banner" data-tone="neutral">Égalité !</p>}
+      <button type="button" className="btn btn-primary" onClick={leave}>Quitter</button></div>;
   } else if (game.status === "lobby") {
     body = <div className="live-center"><div className="result-emoji" aria-hidden="true">🙌</div><h2 className="page-title">C'est bon, {me.nom} !</h2><p className="hint">Regarde l'écran : la partie va bientôt commencer.</p></div>;
   } else if (game.status === "question") {
