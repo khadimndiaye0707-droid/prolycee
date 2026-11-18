@@ -8,11 +8,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ── XP SYSTEM ────────────────────────────────────────────────
 const LEVELS = [
-  { level: 1, name: "Apprenti Archi",   icon: "📐", xpMin: 0,    color: "#6b7280" },
-  { level: 2, name: "Dessinateur",      icon: "✏️", xpMin: 500,  color: "#3d9fff" },
-  { level: 3, name: "Maquettiste BIM",  icon: "🏗️", xpMin: 1500, color: "#22d3a0" },
-  { level: 4, name: "Chef de projet",   icon: "📋", xpMin: 3000, color: "#a78bfa" },
-  { level: 5, name: "Maître TBAA",      icon: "👑", xpMin: 6000, color: "#ffd166" },
+  { level: 1, name: "Apprenti Archi",   icon: "📐", xpMin: 0,    color: "#5b6472" },
+  { level: 2, name: "Dessinateur",      icon: "✏️", xpMin: 500,  color: "#0e7490" },
+  { level: 3, name: "Maquettiste BIM",  icon: "🏗️", xpMin: 1500, color: "#15803d" },
+  { level: 4, name: "Chef de projet",   icon: "📋", xpMin: 3000, color: "#6d28d9" },
+  { level: 5, name: "Maître TBAA",      icon: "👑", xpMin: 6000, color: "#a16207" },
 ];
 
 const XP_GAINS = {
@@ -86,68 +86,109 @@ const SAMPLE_QUIZ = {
   ]
 };
 
-const s = {
-  card:{background:"#151820",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,padding:"1.2rem"},
-  btn:(bg="#ff6b2b",color="white")=>({background:bg,color,border:"none",borderRadius:8,padding:"0.5rem 1rem",fontWeight:700,fontSize:"0.82rem",textTransform:"uppercase",letterSpacing:"0.5px",cursor:"pointer"}),
-  input:{width:"100%",background:"#0d0f14",border:"1px solid rgba(255,255,255,0.07)",borderRadius:8,padding:"0.6rem 0.8rem",color:"#e8eaf0",fontSize:"0.9rem",outline:"none",fontFamily:"inherit"},
-  badge:(bg,color)=>({display:"inline-block",background:bg,color,fontSize:"0.65rem",fontWeight:700,padding:"0.2rem 0.5rem",borderRadius:4,textTransform:"uppercase",letterSpacing:"0.5px"}),
-};
+// ── THÈME ────────────────────────────────────────────────────
+// Mise en page, boutons, champs et responsive sont dans index.css.
+// Ne restent ici que les couleurs calculées (niveau, classe, équipe…).
+// « Encre » : même teinte qu'une couleur de la palette, assez foncée pour du
+// petit texte sur fond teinté ou ivoire (contraste WCAG AA ≥ 4,5:1).
+const INKS={"#a16207":"#854d0e","#15803d":"#166534","#0e7490":"#155e75","#c81e3a":"#a3152f","#5b6472":"#465060"};
+const ink=c=>INKS[c]||c;
+const tint=c=>`${c}1f`; // ≈ 12 % d'opacité
+const edge=c=>`${c}59`; // ≈ 35 % d'opacité
+const tone=c=>({background:tint(c),color:ink(c),borderColor:edge(c)});
+const FILIERES={seconde:"Seconde",premiere:"Première",terminale:"Terminale"};
+const LETTRES=["A","B","C","D"];
 
+function Logo({size=36}){
+  return <svg className="brand-mark" width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+    <rect width="64" height="64" rx="12" fill="#8c2f39"/>
+    <path d="M32 11 53 25v3H11v-3z" fill="#fff"/>
+    <path d="M17 31h6v15h-6zM29 31h6v15h-6zM41 31h6v15h-6z" fill="#fff"/>
+    <path d="M12 49h40v5H12z" fill="#e7c873"/>
+  </svg>;
+}
 function Badge({type,children}){
-  const map={seconde:["rgba(61,159,255,0.15)","#3d9fff"],premiere:["rgba(167,139,250,0.15)","#a78bfa"],terminale:["rgba(255,209,102,0.15)","#ffd166"],green:["rgba(34,211,160,0.15)","#22d3a0"],orange:["rgba(255,107,43,0.15)","#ff6b2b"],yellow:["rgba(255,209,102,0.15)","#ffd166"],purple:["rgba(167,139,250,0.15)","#a78bfa"]};
-  const [bg,color]=map[type]||map.green;
-  return <span style={s.badge(bg,color)}>{children}</span>;
+  const map={seconde:"#0e7490",premiere:"#6d28d9",terminale:"#a16207",green:"#15803d",orange:"#8c2f39",yellow:"#a16207",purple:"#6d28d9"};
+  return <span className="badge" style={tone(map[type]||map.green)}>{children}</span>;
 }
-function Btn({onClick,color="#ff6b2b",textColor="white",sm,children,style={}}){
-  return <button onClick={onClick} style={{...s.btn(color,textColor),padding:sm?"0.35rem 0.7rem":"0.55rem 1.1rem",fontSize:sm?"0.72rem":"0.82rem",...style}}>{children}</button>;
+function Btn({onClick,color,textColor,sm,variant="primary",className="",children,style={},...rest}){
+  const vars={...(color?{"--btn-bg":color}:{}),...(textColor?{"--btn-fg":textColor}:{})};
+  return <button type="button" onClick={onClick} className={`btn btn-${variant}${sm?" btn-sm":""}${className?" "+className:""}`} style={{...vars,...style}} {...rest}>{children}</button>;
 }
-function Card({children,style={}}){return <div style={{...s.card,...style}}>{children}</div>;}
-function SectionTitle({children}){return <div style={{fontSize:"0.95rem",fontWeight:800,textTransform:"uppercase",letterSpacing:"1px",marginBottom:"1rem"}}>{children}</div>;}
-function Progress({value,color}){
-  return <div style={{background:"#0d0f14",borderRadius:100,height:6,overflow:"hidden",marginTop:"0.4rem"}}>
-    <div style={{width:`${value}%`,height:"100%",borderRadius:100,background:color,transition:"width 0.6s"}}/>
+function Chip({active,color,onClick,children}){
+  return <button type="button" className="chip" aria-pressed={active} onClick={onClick} style={color?{"--chip":color}:undefined}>{children}</button>;
+}
+function Card({children,style={},className=""}){return <div className={`card${className?" "+className:""}`} style={style}>{children}</div>;}
+function SectionTitle({children,action}){
+  return <div className="section-head">
+    <h2 className="section-title">{children}</h2>
+    {action&&<div className="section-action">{action}</div>}
+  </div>;
+}
+// `stack` : sur petit écran, le titre passe sous la ligne « retour … compteur » (titres longs, ex. quiz en cours).
+function PageHeader({icon,title,subtitle,back,small,stack,children}){
+  return <header className="page-head" data-size={small?"sm":undefined} data-stack={stack?"true":undefined}>
+    {back}
+    {icon&&<span className="page-icon" aria-hidden="true">{icon}</span>}
+    <div className="page-head-text">
+      <h1 className="page-title">{title}</h1>
+      {subtitle&&<p className="page-sub">{subtitle}</p>}
+    </div>
+    {children&&<div className="page-head-extra">{children}</div>}
+  </header>;
+}
+function Label({htmlFor,children}){return <label className="label" htmlFor={htmlFor}>{children}</label>;}
+function Callout({color="#a16207",children,style={}}){
+  return <div className="callout" style={{...tone(color),"--accent":color,...style}}>{children}</div>;
+}
+function Avatar({name,sm}){return <div className="avatar" data-size={sm?"sm":undefined} aria-hidden="true">{name[0]}</div>;}
+function Progress({value,color,label}){
+  return <div className="progress" role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={100} aria-label={label}>
+    <div style={{width:`${value}%`,background:color}}/>
   </div>;
 }
 function NotePill({val}){
-  const color=val>=14?"#22d3a0":val>=10?"#ffd166":"#ff4d6d";
-  const bg=val>=14?"rgba(34,211,160,0.15)":val>=10?"rgba(255,209,102,0.15)":"rgba(255,77,109,0.15)";
-  return <span style={{...s.badge(bg,color),fontSize:"0.8rem",padding:"0.2rem 0.6rem"}}>{val}</span>;
+  const color=val>=14?"#15803d":val>=10?"#a16207":"#c81e3a";
+  return <span className="badge note-pill num" style={tone(color)}>{val}</span>;
 }
 function XPBadge({xp,size="sm"}){
   const {current}=getLevelInfo(xp);
-  const big=size==="lg";
-  return <span style={{display:"inline-flex",alignItems:"center",gap:"0.3rem",background:`${current.color}20`,border:`1px solid ${current.color}50`,borderRadius:20,padding:big?"0.4rem 0.9rem":"0.2rem 0.6rem",fontSize:big?"0.85rem":"0.68rem",fontWeight:700,color:current.color}}>
-    <span>{current.icon}</span><span>{current.name}</span>
+  return <span className="xp-badge" data-size={size} style={tone(current.color)}>
+    <span aria-hidden="true">{current.icon}</span><span>{current.name}</span>
   </span>;
 }
 function XPBar({xp,showLabel=true}){
   const {current,next,progress}=getLevelInfo(xp);
   return <div>
-    {showLabel&&<div style={{display:"flex",justifyContent:"space-between",fontSize:"0.72rem",marginBottom:"0.3rem"}}>
-      <span style={{color:"#ffd166",fontWeight:700}}>⭐ {xp} XP</span>
-      {next?<span style={{color:"#6b7280"}}>{next.xpMin-xp} XP → {next.icon} {next.name}</span>:<span style={{color:"#ffd166"}}>👑 Niveau max !</span>}
+    {showLabel&&<div className="xpbar-labels">
+      <span className="num" style={{color:"#854d0e",fontWeight:700}}>⭐ {xp} XP</span>
+      {next?<span className="muted">{next.xpMin-xp} XP → {next.icon} {next.name}</span>:<span style={{color:"#854d0e",fontWeight:600}}>👑 Niveau max !</span>}
     </div>}
-    <div style={{background:"#0d0f14",borderRadius:100,height:8,overflow:"hidden",border:"1px solid rgba(255,255,255,0.07)"}}>
-      <div style={{width:`${progress}%`,height:"100%",borderRadius:100,background:`linear-gradient(90deg,${current.color},${current.color}cc)`,transition:"width 0.8s ease",boxShadow:`0 0 8px ${current.color}60`}}/>
+    <div className="xpbar-track" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label="Progression vers le niveau suivant">
+      <div style={{width:`${progress}%`,background:current.color}}/>
     </div>
   </div>;
 }
 function XPToast({gain,label,onDone}){
   useEffect(()=>{const t=setTimeout(onDone,2500);return()=>clearTimeout(t);},[]);
-  return <div style={{background:"linear-gradient(135deg,#1c2030,#151820)",border:"1px solid rgba(255,209,102,0.4)",borderRadius:14,padding:"0.8rem 1.2rem",display:"flex",alignItems:"center",gap:"0.8rem",boxShadow:"0 8px 32px rgba(0,0,0,0.5)",animation:"slideIn 0.3s ease"}}>
-    <style>{`@keyframes slideIn{from{transform:translateX(120px);opacity:0}to{transform:translateX(0);opacity:1}}`}</style>
-    <div style={{fontSize:"1.5rem"}}>⭐</div>
-    <div><div style={{fontWeight:900,color:"#ffd166",fontSize:"1.1rem"}}>+{gain} XP</div><div style={{fontSize:"0.72rem",color:"#6b7280"}}>{label}</div></div>
+  return <div className="toast">
+    <div style={{fontSize:"1.5rem",lineHeight:1}} aria-hidden="true">⭐</div>
+    <div><div className="toast-gain num">+{gain} XP</div><div className="toast-label">{label}</div></div>
   </div>;
 }
 function LevelUpModal({level,onClose}){
-  return <div style={{position:"fixed",inset:0,zIndex:10000,background:"rgba(0,0,0,0.8)",display:"flex",alignItems:"center",justifyContent:"center"}}>
-    <div style={{background:"#151820",border:`2px solid ${level.color}`,borderRadius:20,padding:"3rem",textAlign:"center",maxWidth:340,boxShadow:`0 0 60px ${level.color}40`,animation:"popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)"}}>
-      <style>{`@keyframes popIn{from{transform:scale(0.5);opacity:0}to{transform:scale(1);opacity:1}}`}</style>
-      <div style={{fontSize:"4rem",marginBottom:"0.5rem"}}>{level.icon}</div>
-      <div style={{fontSize:"0.8rem",fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#6b7280",marginBottom:"0.3rem"}}>Niveau {level.level} atteint !</div>
-      <div style={{fontSize:"1.8rem",fontWeight:900,color:level.color,marginBottom:"1.5rem"}}>{level.name}</div>
-      <Btn onClick={onClose} color={level.color} style={{color:"#0d0f14"}}>🎉 Super !</Btn>
+  // Fermeture au clavier (Échap) ; le bouton reçoit le focus à l'ouverture.
+  useEffect(()=>{
+    const onKey=e=>{if(e.key==="Escape")onClose();};
+    window.addEventListener("keydown",onKey);
+    return()=>window.removeEventListener("keydown",onKey);
+  },[onClose]);
+  return <div className="modal-overlay">
+    <div className="modal" role="dialog" aria-modal="true" aria-labelledby="levelup-title" style={{"--accent":level.color}}>
+      <div className="modal-icon" aria-hidden="true">{level.icon}</div>
+      <div className="overline" style={{letterSpacing:"0.14em"}}>Niveau {level.level} atteint !</div>
+      <h2 id="levelup-title" className="modal-title" style={{color:ink(level.color)}}>{level.name}</h2>
+      <Btn onClick={onClose} color={level.color} autoFocus>🎉 Super !</Btn>
     </div>
   </div>;
 }
@@ -203,67 +244,67 @@ function Login({onLogin}){
     setLoading(false);
   };
 
-  return <div style={{minHeight:"100vh",background:"#0d0f14",display:"flex",alignItems:"center",justifyContent:"center",padding:"1rem"}}>
-    <div style={{background:"#151820",border:"1px solid rgba(255,255,255,0.07)",borderRadius:20,padding:"2.5rem",width:"100%",maxWidth:440}}>
-      <div style={{textAlign:"center",marginBottom:"2rem"}}>
-        <div style={{width:60,height:60,background:"#ff6b2b",borderRadius:14,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:"1.8rem",marginBottom:"0.8rem"}}>🏗️</div>
-        <div style={{fontSize:"2rem",fontWeight:900,textTransform:"uppercase",letterSpacing:1}}>ProLycée</div>
-        <div style={{fontSize:"0.75rem",color:"#6b7280",letterSpacing:2,textTransform:"uppercase"}}>Plateforme pédagogique</div>
+  return <div className="login">
+    <main className="login-card">
+      <div className="login-brand">
+        <Logo size={60}/>
+        <h1 className="login-title">Pro<span>Lycée</span></h1>
+        <div className="overline" style={{letterSpacing:"0.16em",marginTop:"0.1rem"}}>Plateforme pédagogique</div>
       </div>
 
       {/* Tabs Prof / Élève */}
-      <div style={{display:"flex",gap:"0.5rem",background:"#0d0f14",borderRadius:10,padding:4,marginBottom:"1.5rem"}}>
+      <div className="seg" role="group" aria-label="Type de compte">
         {["prof","eleve"].map(t=>(
-          <button key={t} onClick={()=>{setTab(t);setError("");}} style={{flex:1,padding:"0.6rem",border:"none",background:tab===t?"#1c2030":"none",color:tab===t?"#e8eaf0":"#6b7280",borderRadius:8,fontWeight:600,fontSize:"0.85rem",textTransform:"uppercase",cursor:"pointer",fontFamily:"inherit"}}>
+          <button type="button" key={t} aria-pressed={tab===t} onClick={()=>{setTab(t);setError("");}}>
             {t==="prof"?"👨‍🏫 Professeur":"👨‍🎓 Élève"}
           </button>
         ))}
       </div>
 
       {tab==="prof"?(
-        <>
-          <div style={{marginBottom:"1rem"}}>
-            <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Identifiant</div>
-            <input style={s.input} defaultValue="prof.khadim" readOnly/>
+        <form onSubmit={e=>{e.preventDefault();handleProfLogin();}}>
+          <div className="form-row">
+            <Label htmlFor="prof-identifiant">Identifiant</Label>
+            <input id="prof-identifiant" className="field" defaultValue="prof.khadim" readOnly/>
           </div>
-          <div style={{marginBottom:"1rem"}}>
-            <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Mot de passe</div>
-            <input type="password" style={s.input} defaultValue="1234" readOnly/>
+          <div className="form-row">
+            <Label htmlFor="prof-mdp">Mot de passe</Label>
+            <input id="prof-mdp" type="password" className="field" defaultValue="1234" readOnly/>
           </div>
-          <button onClick={handleProfLogin} style={{...s.btn(),width:"100%",padding:"0.85rem",fontSize:"1rem"}}>Se connecter →</button>
-        </>
+          <button type="submit" className="btn btn-primary btn-lg btn-block">Se connecter →</button>
+        </form>
       ):(
-        <>
+        <form noValidate onSubmit={e=>{e.preventDefault();(authMode==="connexion"?handleEleveConnexion:handleEleveInscription)();}}>
           {/* Connexion / Inscription tabs */}
-          <div style={{display:"flex",gap:"0.5rem",marginBottom:"1.2rem"}}>
+          <div className="toggle-row" role="group" aria-label="Connexion ou inscription">
             {["connexion","inscription"].map(m=>(
-              <button key={m} onClick={()=>{setAuthMode(m);setError("");}} style={{flex:1,padding:"0.5rem",border:`1px solid ${authMode===m?"#ff6b2b":"rgba(255,255,255,0.07)"}`,background:authMode===m?"rgba(255,107,43,0.1)":"none",color:authMode===m?"#ff6b2b":"#6b7280",borderRadius:8,fontWeight:600,fontSize:"0.8rem",cursor:"pointer",fontFamily:"inherit"}}>
+              <button type="button" key={m} aria-pressed={authMode===m} onClick={()=>{setAuthMode(m);setError("");}}>
                 {m==="connexion"?"🔑 Se connecter":"✨ Créer un compte"}
               </button>
             ))}
           </div>
 
           {authMode==="inscription"&&(
-            <div style={{marginBottom:"0.8rem"}}>
-              <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Ton prénom</div>
-              <input style={s.input} placeholder="Ex: Amara" value={nom} onChange={e=>setNom(e.target.value)}/>
+            <div className="form-row">
+              <Label htmlFor="eleve-prenom">Ton prénom</Label>
+              <input id="eleve-prenom" className="field" placeholder="Ex: Amara" autoComplete="given-name" value={nom} onChange={e=>setNom(e.target.value)}/>
             </div>
           )}
 
-          <div style={{marginBottom:"0.8rem"}}>
-            <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Email</div>
-            <input type="email" style={s.input} placeholder="ton.email@exemple.com" value={email} onChange={e=>setEmail(e.target.value)}/>
+          <div className="form-row">
+            <Label htmlFor="eleve-email">Email</Label>
+            <input id="eleve-email" type="email" className="field" placeholder="ton.email@exemple.com" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)}/>
           </div>
 
-          <div style={{marginBottom:"0.8rem"}}>
-            <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Mot de passe</div>
-            <input type="password" style={s.input} placeholder="6 caractères minimum" value={password} onChange={e=>setPassword(e.target.value)}/>
+          <div className="form-row">
+            <Label htmlFor="eleve-mdp">Mot de passe</Label>
+            <input id="eleve-mdp" type="password" className="field" placeholder="6 caractères minimum" autoComplete={authMode==="connexion"?"current-password":"new-password"} value={password} onChange={e=>setPassword(e.target.value)}/>
           </div>
 
           {authMode==="inscription"&&(<>
-            <div style={{marginBottom:"1rem"}}>
-              <div style={{fontSize:"0.72rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",marginBottom:"0.4rem"}}>Ta classe</div>
-              <select style={s.input} value={niveau} onChange={e=>setNiveau(e.target.value)}>
+            <div className="form-row">
+              <Label htmlFor="eleve-classe">Ta classe</Label>
+              <select id="eleve-classe" className="field" value={niveau} onChange={e=>setNiveau(e.target.value)}>
                 <option value="seconde">🏛️ Seconde</option>
                 <option value="premiere">🏛️ 1ère TBAA</option>
                 <option value="terminale">🏛️ Terminale TBAA</option>
@@ -271,30 +312,27 @@ function Login({onLogin}){
             </div>
           </>)}
 
-          {error&&<div style={{background:"rgba(255,77,109,0.1)",border:"1px solid rgba(255,77,109,0.3)",borderRadius:8,padding:"0.6rem 0.8rem",color:"#ff4d6d",fontSize:"0.82rem",marginBottom:"0.8rem"}}>{error}</div>}
+          {error&&<div className="alert" role="alert">{error}</div>}
 
-          <button
-            onClick={authMode==="connexion"?handleEleveConnexion:handleEleveInscription}
-            disabled={loading}
-            style={{...s.btn(),width:"100%",padding:"0.85rem",fontSize:"1rem",opacity:loading?0.7:1}}
-          >
+          <button type="submit" disabled={loading} className="btn btn-primary btn-lg btn-block">
             {loading?"⏳ Chargement...":(authMode==="connexion"?"Se connecter →":"Créer mon compte →")}
           </button>
 
-          <div style={{textAlign:"center",marginTop:"0.8rem",fontSize:"0.75rem",color:"#6b7280"}}>
+          <div className="login-foot">
             {authMode==="connexion"?"Pas encore de compte ?":"Tu as déjà un compte ?"}
-            <button onClick={()=>{setAuthMode(authMode==="connexion"?"inscription":"connexion");setError("");}} style={{background:"none",border:"none",color:"#ff6b2b",cursor:"pointer",fontWeight:700,fontSize:"0.75rem",marginLeft:"0.3rem"}}>
+            <button type="button" className="link-btn" onClick={()=>{setAuthMode(authMode==="connexion"?"inscription":"connexion");setError("");}}>
               {authMode==="connexion"?"Créer un compte":"Se connecter"}
             </button>
           </div>
-        </>
+        </form>
       )}
-    </div>
+    </main>
   </div>;
 }
 
 // ── SIDEBAR ───────────────────────────────────────────────────
-function Sidebar({active,setActive,user}){
+// ≥ 900 px : colonne fixe. En dessous : panneau repliable ouvert par le bouton « Menu » de l'en-tête.
+function Sidebar({active,setActive,user,open,onClose,onLogout}){
   const items=[
     {id:"dashboard",icon:"🏠",label:"Tableau de bord"},
     {id:"classes",icon:"📚",label:"Mes Classes"},
@@ -307,18 +345,29 @@ function Sidebar({active,setActive,user}){
     {id:"xp",icon:"⭐",label:"Mon XP"},
     ...(user.role==="prof"?[null,{id:"moodle",icon:"🎓",label:"Éléa / Moodle"}]:[]),
   ];
-  return <div style={{width:210,background:"#151820",borderRight:"1px solid rgba(255,255,255,0.07)",padding:"0.8rem 0",display:"flex",flexDirection:"column",gap:"0.15rem",flexShrink:0}}>
-    <div style={{fontSize:"0.62rem",fontWeight:700,letterSpacing:2,textTransform:"uppercase",color:"#6b7280",padding:"0.3rem 1.5rem",marginBottom:"0.2rem"}}>Menu</div>
-    {items.map((item,i)=>item===null?(
-      <div key={i} style={{height:1,background:"rgba(255,255,255,0.07)",margin:"0.4rem 1rem"}}/>
-    ):(
-      <button key={item.id} onClick={()=>setActive(item.id)} style={{display:"flex",alignItems:"center",gap:"0.7rem",padding:"0.6rem 1rem",margin:"0 0.4rem",borderRadius:10,border:"none",background:active===item.id?"rgba(255,107,43,0.15)":"none",color:active===item.id?"#ff6b2b":"#6b7280",fontWeight:600,fontSize:"0.83rem",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
-        <span style={{fontSize:"1rem",minWidth:20,textAlign:"center"}}>{item.icon}</span>
-        {item.label}
-        {item.id==="xp"&&<span style={{marginLeft:"auto",background:"rgba(255,209,102,0.12)",color:"#ffd166",borderRadius:10,padding:"0.1rem 0.4rem",fontSize:"0.65rem",fontWeight:700}}>XP</span>}
-      </button>
-    ))}
-  </div>;
+  const groups=["Jeux","Progression","Ressources"];
+  return <>
+    <nav id="menu-principal" className="app-sidebar" data-open={open?"true":"false"} aria-label="Navigation principale">
+      <div className="overline nav-group">Pédagogie</div>
+      {items.map((item,i)=>item===null?(
+        <div key={i} role="presentation">
+          <div className="nav-sep"/>
+          <div className="overline nav-group">{groups[items.slice(0,i).filter(x=>x===null).length]}</div>
+        </div>
+      ):(
+        <button type="button" key={item.id} className="nav-item" aria-current={active===item.id?"page":undefined} onClick={()=>{setActive(item.id);onClose();}}>
+          <span className="nav-icon" aria-hidden="true">{item.icon}</span>
+          {item.label}
+          {item.id==="xp"&&<span className="nav-tag">XP</span>}
+        </button>
+      ))}
+      <div className="sidebar-account">
+        <div className="sidebar-user">{user.role==="prof"?"👨‍🏫":"👨‍🎓"} {user.name}</div>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onLogout}>Déconnexion</button>
+      </div>
+    </nav>
+    {open&&<div className="menu-backdrop" onClick={onClose} aria-hidden="true"/>}
+  </>;
 }
 
 // ── XP PAGE ───────────────────────────────────────────────────
@@ -327,22 +376,21 @@ function XPPage({user,onAddXP}){
   const {current,next,progress}=getLevelInfo(xp);
   const sorted=[...STUDENTS].sort((a,b)=>b.xp-a.xp);
   return <div>
-    <div style={{background:`linear-gradient(135deg,${current.color}15,#1c2030)`,border:`1px solid ${current.color}40`,borderRadius:20,padding:"2rem",marginBottom:"1.5rem",position:"relative",overflow:"hidden"}}>
-      <div style={{position:"absolute",top:-20,right:-20,fontSize:"8rem",opacity:0.06}}>{current.icon}</div>
-      <div style={{display:"flex",alignItems:"center",gap:"1.5rem",flexWrap:"wrap"}}>
-        <div style={{width:80,height:80,borderRadius:20,background:`linear-gradient(135deg,${current.color},${current.color}80)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"2.5rem",flexShrink:0,boxShadow:`0 0 30px ${current.color}40`}}>{current.icon}</div>
-        <div style={{flex:1}}>
-          <div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:2,marginBottom:"0.3rem"}}>Niveau {current.level}</div>
-          <div style={{fontSize:"1.8rem",fontWeight:900,color:current.color,lineHeight:1,marginBottom:"0.5rem"}}>{current.name}</div>
-          <XPBadge xp={xp} size="lg"/>
+    <PageHeader icon="⭐" title="Mon XP" subtitle="Niveaux, gains et classement"/>
+    <section className="hero">
+      <div className="hero-top">
+        <div className="level-tile" style={{borderColor:edge(current.color)}} aria-hidden="true">{current.icon}</div>
+        <div className="hero-id">
+          <div className="overline">Niveau {current.level}</div>
+          <div className="hero-name" style={{color:ink(current.color)}}>{current.name}</div>
         </div>
-        <div style={{textAlign:"right"}}>
-          <div style={{fontSize:"2.5rem",fontWeight:900,color:"#ffd166",lineHeight:1}}>{xp}</div>
-          <div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1}}>XP total</div>
+        <div className="hero-xp">
+          <div className="hero-xp-val num">{xp}</div>
+          <div className="overline">XP total</div>
         </div>
       </div>
-      <div style={{marginTop:"1.5rem"}}><XPBar xp={xp}/></div>
-    </div>
+      <XPBar xp={xp}/>
+    </section>
 
     <Card style={{marginBottom:"1.5rem"}}>
       <SectionTitle>🗺️ Parcours de progression</SectionTitle>
@@ -350,16 +398,16 @@ function XPPage({user,onAddXP}){
         {LEVELS.map((lvl,i)=>{
           const unlocked=xp>=lvl.xpMin;
           const isCurrent=current.level===lvl.level;
-          return <div key={i} style={{display:"flex",alignItems:"center",gap:"1rem",padding:"0.8rem 1rem",borderRadius:12,background:isCurrent?`${lvl.color}12`:unlocked?"rgba(255,255,255,0.02)":"transparent",border:`1px solid ${isCurrent?lvl.color+"50":unlocked?"rgba(255,255,255,0.07)":"rgba(255,255,255,0.03)"}`,opacity:unlocked?1:0.4}}>
-            <div style={{width:44,height:44,borderRadius:12,background:unlocked?`${lvl.color}20`:"rgba(255,255,255,0.04)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.5rem",flexShrink:0}}>{lvl.icon}</div>
-            <div style={{flex:1}}>
-              <div style={{display:"flex",alignItems:"center",gap:"0.5rem"}}>
-                <span style={{fontWeight:700,color:unlocked?lvl.color:"#6b7280"}}>{lvl.name}</span>
-                {isCurrent&&<span style={{...s.badge(`${lvl.color}20`,lvl.color),fontSize:"0.6rem"}}>ACTUEL</span>}
+          return <div key={i} className="level-row" data-state={isCurrent?"current":unlocked?"done":"locked"} style={isCurrent?{background:tint(lvl.color),borderColor:edge(lvl.color)}:undefined}>
+            <div className="level-tile" data-size="sm" style={unlocked?{borderColor:edge(lvl.color)}:undefined} aria-hidden="true">{lvl.icon}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{display:"flex",alignItems:"center",gap:"0.5rem",flexWrap:"wrap"}}>
+                <span className="level-name" style={{color:unlocked?ink(lvl.color):"#5b6472"}}>{lvl.name}</span>
+                {isCurrent&&<span className="badge" style={{background:"#fff",color:ink(lvl.color),borderColor:edge(lvl.color)}}>Actuel</span>}
               </div>
-              <div style={{fontSize:"0.72rem",color:"#6b7280",marginTop:"0.1rem"}}>Niveau {lvl.level} · {lvl.xpMin} XP requis</div>
+              <div className="level-meta">Niveau {lvl.level} · {lvl.xpMin} XP requis</div>
             </div>
-            {unlocked?<div style={{color:"#22d3a0",fontSize:"1.2rem"}}>✓</div>:<div style={{fontSize:"0.72rem",color:"#6b7280",textAlign:"right"}}>{lvl.xpMin-xp} XP manquants</div>}
+            {unlocked?<div className="level-check" role="img" aria-label="Niveau atteint">✓</div>:<div className="level-missing">🔒 {lvl.xpMin-xp} XP manquants</div>}
           </div>;
         })}
       </div>
@@ -367,12 +415,12 @@ function XPPage({user,onAddXP}){
 
     <Card style={{marginBottom:"1.5rem"}}>
       <SectionTitle>💡 Comment gagner des XP</SectionTitle>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"0.6rem"}}>
-        {[["🎮","Kahoot — bonne réponse","+100 XP","#3d9fff"],["🏆","Kahoot — victoire finale","+300 XP","#ffd166"],["🎯","Tug of War — bonne réponse","+150 XP","#ff6b2b"],["💪","Tug of War — victoire","+200 XP","#ff4d6d"],["📖","Consulter une ressource","+20 XP","#22d3a0"],["🔥","Combo 3 bonnes réponses","+50 XP","#a78bfa"],["⚡","Combo 5 bonnes réponses","+150 XP","#a78bfa"]].map(([icon,label,gain,col])=>(
-          <div key={label} style={{display:"flex",alignItems:"center",gap:"0.8rem",padding:"0.6rem 0.8rem",background:"#0d0f14",borderRadius:10,border:"1px solid rgba(255,255,255,0.07)"}}>
-            <span style={{fontSize:"1.2rem"}}>{icon}</span>
-            <div style={{flex:1}}><div style={{fontSize:"0.78rem",fontWeight:600}}>{label}</div></div>
-            <span style={{...s.badge(`${col}20`,col),whiteSpace:"nowrap"}}>{gain}</span>
+      <div className="grid-auto" style={{"--min":"250px",gap:"0.6rem"}}>
+        {[["🎮","Kahoot — bonne réponse","+100 XP","#0e7490"],["🏆","Kahoot — victoire finale","+300 XP","#a16207"],["🎯","Tug of War — bonne réponse","+150 XP","#8c2f39"],["💪","Tug of War — victoire","+200 XP","#c81e3a"],["📖","Consulter une ressource","+20 XP","#15803d"],["🔥","Combo 3 bonnes réponses","+50 XP","#6d28d9"],["⚡","Combo 5 bonnes réponses","+150 XP","#6d28d9"]].map(([icon,label,gain,col])=>(
+          <div key={label} className="gain">
+            <span style={{fontSize:"1.2rem"}} aria-hidden="true">{icon}</span>
+            <div className="gain-label">{label}</div>
+            <span className="badge num" style={{background:"#fff",color:ink(col),borderColor:edge(col)}}>{gain}</span>
           </div>
         ))}
       </div>
@@ -382,16 +430,16 @@ function XPPage({user,onAddXP}){
       <SectionTitle>🏆 Classement XP</SectionTitle>
       {sorted.map((st,i)=>{
         const {current:lvl}=getLevelInfo(st.xp);
-        return <div key={st.name} style={{display:"flex",alignItems:"center",gap:"0.8rem",padding:"0.7rem 0.8rem",borderRadius:10,marginBottom:"0.4rem",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.07)"}}>
-          <div style={{width:28,textAlign:"center",fontWeight:900,fontSize:"0.9rem",color:i===0?"#ffd166":i===1?"#94a3b8":i===2?"#cd7f32":"#6b7280"}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":i+1}</div>
-          <div style={{width:36,height:36,borderRadius:10,background:"#ff6b2b",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"white",fontSize:"0.85rem",flexShrink:0}}>{st.name[0]}</div>
-          <div style={{flex:1}}><div style={{fontWeight:700,fontSize:"0.88rem"}}>{st.name}</div><XPBadge xp={st.xp}/></div>
-          <div style={{textAlign:"right"}}><div style={{fontWeight:900,color:"#ffd166",fontFamily:"monospace"}}>{st.xp}</div><div style={{fontSize:"0.65rem",color:"#6b7280"}}>XP</div></div>
+        return <div key={st.name} className="rank-row">
+          <div className="rank-pos">{i===0?"🥇":i===1?"🥈":i===2?"🥉":i+1}</div>
+          <Avatar name={st.name}/>
+          <div className="rank-who"><div className="rank-name">{st.name}</div><XPBadge xp={st.xp}/></div>
+          <div className="rank-xp num">{st.xp}<small>XP</small></div>
         </div>;
       })}
     </Card>
 
-    {user.role==="eleve"&&<div style={{marginTop:"1rem",textAlign:"center"}}><Btn onClick={()=>onAddXP(100,"Test XP")} color="#1c2030" textColor="#6b7280" sm>🧪 Test +100 XP</Btn></div>}
+    {user.role==="eleve"&&<div style={{marginTop:"1rem",textAlign:"center"}}><Btn onClick={()=>onAddXP(100,"Test XP")} variant="secondary" sm>🧪 Test +100 XP</Btn></div>}
   </div>;
 }
 
@@ -409,41 +457,49 @@ function Dashboard({user,onAddXP}){
     };
     const labels={seconde:"🏛️ Seconde",premiere:"🏛️ 1ère TBAA",terminale:"🏛️ Terminale TBAA"};
     return <div>
-      <div style={{background:"#1c2030",borderRadius:16,padding:"1.5rem",marginBottom:"1.5rem",border:"1px solid rgba(255,255,255,0.07)"}}>
-        <div style={{display:"flex",alignItems:"center",gap:"1.5rem",marginBottom:"1rem"}}>
-          <div style={{width:64,height:64,borderRadius:16,background:`linear-gradient(135deg,${current.color},${current.color}80)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.8rem",flexShrink:0,boxShadow:`0 0 20px ${current.color}40`}}>{current.icon}</div>
-          <div style={{flex:1}}>
-            <div style={{fontSize:"1.3rem",fontWeight:900}}>{user.name}</div>
-            <div style={{fontSize:"0.8rem",color:"#6b7280",marginTop:"0.1rem"}}>{CLASSE_LABELS[user.classe]||labels[user.classe?.split("_")[0]]||user.classe}</div>
-            <div style={{display:"flex",gap:"0.4rem",marginTop:"0.6rem",flexWrap:"wrap"}}><XPBadge xp={xp} size="lg"/><Badge type="orange">⚡ 5 TP réalisés</Badge></div>
+      <section className="hero">
+        <div className="hero-top">
+          <div className="level-tile" style={{borderColor:edge(current.color)}} aria-hidden="true">{current.icon}</div>
+          <div className="hero-id">
+            <h1 className="hero-name">{user.name}</h1>
+            <div className="hero-sub">{CLASSE_LABELS[user.classe]||labels[user.classe?.split("_")[0]]||user.classe}</div>
+            <div className="hero-badges"><XPBadge xp={xp} size="lg"/><Badge type="orange">⚡ 5 TP réalisés</Badge></div>
           </div>
-          <div style={{textAlign:"right"}}><div style={{fontSize:"2rem",fontWeight:900,color:"#ffd166",lineHeight:1}}>{xp}</div><div style={{fontSize:"0.65rem",color:"#6b7280",textTransform:"uppercase"}}>XP total</div></div>
+          <div className="hero-xp">
+            <div className="hero-xp-val num">{xp}</div>
+            <div className="overline">XP total</div>
+          </div>
         </div>
         <XPBar xp={xp}/>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:"0.8rem",marginBottom:"1.5rem"}}>
-        {[["14.5","#22d3a0","Moyenne générale"],["16","#3d9fff","Meilleure note"],["87%","#ffd166","Progression"],[`Niv.${current.level}`,current.color,"Niveau actuel"]].map(([v,col,label])=>(
-          <Card key={label} style={{textAlign:"center",padding:"1rem"}}><div style={{fontSize:"2rem",fontWeight:900,color:col,lineHeight:1}}>{v}</div><div style={{fontSize:"0.68rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginTop:"0.3rem"}}>{label}</div></Card>
+      </section>
+      <div className="stats" data-cols="4">
+        {[["14.5","#15803d","Moyenne générale"],["16","#0e7490","Meilleure note"],["87%","#a16207","Progression"],[`Niv.${current.level}`,current.color,"Niveau actuel"]].map(([v,col,label])=>(
+          <Card key={label} className="stat"><div className="stat-val" style={{color:col}}>{v}</div><div className="overline stat-label">{label}</div></Card>
         ))}
       </div>
       <Card>
         <SectionTitle>📚 Ma progression</SectionTitle>
         {seqs.map((seq,i)=>(
-          <div key={i} style={{background:"#0d0f14",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,marginBottom:"0.5rem",overflow:"hidden"}}>
-            <div onClick={()=>setOpen(open===i?null:i)} style={{padding:"0.8rem 1rem",display:"flex",alignItems:"center",gap:"0.8rem",cursor:"pointer"}}>
-              <div style={{fontSize:"1.4rem",fontWeight:900,color:"#ff6b2b",minWidth:36,fontFamily:"monospace"}}>{seq.num}</div>
-              <div style={{flex:1}}><div style={{fontWeight:700,fontSize:"0.9rem"}}>{seq.title}</div><div style={{fontSize:"0.72rem",color:"#6b7280",marginTop:"0.1rem"}}>📅 {seq.periode} · {seq.semaines}</div></div>
-              <span style={{color:"#6b7280",fontSize:"0.8rem",transform:open===i?"rotate(90deg)":"none",transition:"0.2s",display:"inline-block"}}>▶</span>
-            </div>
-            {open===i&&<div style={{padding:"0 1rem 1rem"}}>
-              {seq.resources.map((r,j)=>(
-                <div key={j} onClick={()=>{if(r.s==="ok")onAddXP(XP_GAINS.resource_view,"Ressource consultée");}} style={{display:"flex",alignItems:"center",gap:"0.7rem",padding:"0.5rem 0.8rem",borderRadius:8,marginTop:"0.4rem",background:"rgba(255,255,255,0.03)",cursor:r.s==="ok"?"pointer":"default"}}>
-                  <span style={{fontSize:"1rem",minWidth:20,textAlign:"center"}}>{r.icon}</span>
-                  <span style={{flex:1,fontSize:"0.82rem",fontWeight:500}}>{r.name}</span>
-                  {r.s==="ok"&&<span style={{fontSize:"0.6rem",color:"#22d3a0"}}>+{XP_GAINS.resource_view}XP</span>}
-                  <span style={{...s.badge(r.s==="ok"?"rgba(34,211,160,0.15)":r.s==="wip"?"rgba(255,107,43,0.15)":"rgba(107,114,128,0.2)",r.s==="ok"?"#22d3a0":r.s==="wip"?"#ff6b2b":"#6b7280")}}>{r.s==="ok"?"Disponible":r.s==="wip"?"En cours":"Bientôt"}</span>
-                </div>
-              ))}
+          <div key={i} className="acc">
+            <button type="button" className="acc-head" aria-expanded={open===i} onClick={()=>setOpen(open===i?null:i)}>
+              <span className="acc-num num" style={{color:"#8c2f39"}}>{seq.num}</span>
+              <span className="acc-text"><span className="acc-title">{seq.title}</span><span className="acc-meta">📅 {seq.periode} · {seq.semaines}</span></span>
+              <span className="acc-chevron" aria-hidden="true">▶</span>
+            </button>
+            {open===i&&<div className="acc-body">
+              {seq.resources.map((r,j)=>{
+                const view=()=>{if(r.s==="ok")onAddXP(XP_GAINS.resource_view,"Ressource consultée");};
+                const content=<>
+                  <span className="res-icon" aria-hidden="true">{r.icon}</span>
+                  <span className="res-name">{r.name}</span>
+                  {r.s==="ok"&&<span className="res-xp">+{XP_GAINS.resource_view} XP</span>}
+                  <span className="badge" style={tone(r.s==="ok"?"#15803d":r.s==="wip"?"#8c2f39":"#5b6472")}>{r.s==="ok"?"Disponible":r.s==="wip"?"En cours":"Bientôt"}</span>
+                </>;
+                // Ressource disponible : vrai bouton (utilisable au clavier) ; sinon simple ligne.
+                return r.s==="ok"
+                  ?<button type="button" key={j} className="res" onClick={view}>{content}</button>
+                  :<div key={j} className="res" onClick={view}>{content}</div>;
+              })}
             </div>}
           </div>
         ))}
@@ -453,18 +509,19 @@ function Dashboard({user,onAddXP}){
 
   const sorted=[...STUDENTS].sort((a,b)=>b.xp-a.xp).slice(0,3);
   return <div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(160px,1fr))",gap:"1rem",marginBottom:"1.5rem"}}>
-      {[["3","#3d9fff","Classes actives"],["47","#22d3a0","Élèves connectés"],["12","#ff6b2b","Quiz créés"]].map(([v,col,label])=>(
-        <Card key={label} style={{textAlign:"center",padding:"1.5rem"}}><div style={{fontSize:"2.5rem",fontWeight:900,color:col,lineHeight:1}}>{v}</div><div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginTop:"0.3rem"}}>{label}</div></Card>
+    <PageHeader icon="🏠" title="Tableau de bord" subtitle={`Bienvenue, ${user.name}`}/>
+    <div className="stats">
+      {[["3","#0e7490","Classes actives"],["47","#15803d","Élèves connectés"],["12","#8c2f39","Quiz créés"]].map(([v,col,label])=>(
+        <Card key={label} className="stat"><div className="stat-val" style={{color:col}}>{v}</div><div className="overline stat-label">{label}</div></Card>
       ))}
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:"1rem"}}>
+    <div className="grid-auto" style={{"--min":"280px"}}>
       <Card>
         <SectionTitle>📈 Progression par classe</SectionTitle>
-        {[["🏛️ Seconde","68","#3d9fff"],["🏛️ 1ère TBAA","61","#a78bfa"],["🏛️ Terminale TBAA","75","#ffd166"]].map(([label,val,col])=>(
-          <div key={label} style={{marginBottom:"0.8rem"}}>
-            <div style={{display:"flex",justifyContent:"space-between",fontSize:"0.8rem",marginBottom:"0.2rem"}}><span>{label}</span><span style={{color:col,fontWeight:700}}>{val}%</span></div>
-            <Progress value={parseInt(val)} color={col}/>
+        {[["🏛️ Seconde","68","#0e7490"],["🏛️ 1ère TBAA","61","#6d28d9"],["🏛️ Terminale TBAA","75","#a16207"]].map(([label,val,col])=>(
+          <div key={label} style={{marginBottom:"0.9rem"}}>
+            <div style={{display:"flex",justifyContent:"space-between",gap:"0.75rem",fontSize:"0.84rem",marginBottom:"0.2rem"}}><span>{label}</span><span className="num" style={{color:ink(col),fontWeight:700}}>{val}%</span></div>
+            <Progress value={parseInt(val)} color={col} label={`Progression ${label}`}/>
           </div>
         ))}
       </Card>
@@ -472,11 +529,11 @@ function Dashboard({user,onAddXP}){
         <SectionTitle>⭐ Top XP élèves</SectionTitle>
         {sorted.map((st,i)=>{
           const {current:lvl}=getLevelInfo(st.xp);
-          return <div key={st.name} style={{display:"flex",alignItems:"center",gap:"0.8rem",padding:"0.6rem 0",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
-            <span style={{fontSize:"1.1rem"}}>{i===0?"🥇":i===1?"🥈":"🥉"}</span>
-            <div style={{width:32,height:32,borderRadius:8,background:"#ff6b2b",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"white",fontSize:"0.8rem",flexShrink:0}}>{st.name[0]}</div>
-            <div style={{flex:1}}><div style={{fontWeight:600,fontSize:"0.85rem"}}>{st.name}</div><XPBadge xp={st.xp}/></div>
-            <div style={{fontWeight:900,color:"#ffd166",fontFamily:"monospace",fontSize:"0.9rem"}}>{st.xp}</div>
+          return <div key={st.name} className="rank-row">
+            <div className="rank-pos">{i===0?"🥇":i===1?"🥈":"🥉"}</div>
+            <Avatar name={st.name} sm/>
+            <div className="rank-who"><div className="rank-name">{st.name}</div><XPBadge xp={st.xp}/></div>
+            <div className="rank-xp num">{st.xp}</div>
           </div>;
         })}
       </Card>
@@ -488,31 +545,30 @@ function Dashboard({user,onAddXP}){
 function Classes(){
   const [selected,setSelected]=useState(null);
   const [open,setOpen]=useState(null);
+  // Liste ↔ détail : on repart du haut de la page
+  useEffect(()=>{window.scrollTo(0,0);},[selected]);
   const meta={
-    seconde:{label:"Tronc commun",title:"Seconde",sub:"Seconde famille des métiers du bâtiment",icon:"🏛️",color:"#3d9fff"},
-    premiere:{label:"Bac Pro",title:"1ère TBAA",sub:"Technicien du Bâtiment — Option Assistant en Architecture",icon:"📐",color:"#a78bfa"},
-    terminale:{label:"Bac Pro",title:"Terminale TBAA",sub:"Technicien du Bâtiment — Option Assistant en Architecture",icon:"🏗️",color:"#ffd166"},
+    seconde:{label:"Tronc commun",title:"Seconde",sub:"Seconde famille des métiers du bâtiment",icon:"🏛️",color:"#0e7490"},
+    premiere:{label:"Bac Pro",title:"1ère TBAA",sub:"Technicien du Bâtiment — Option Assistant en Architecture",icon:"📐",color:"#6d28d9"},
+    terminale:{label:"Bac Pro",title:"Terminale TBAA",sub:"Technicien du Bâtiment — Option Assistant en Architecture",icon:"🏗️",color:"#a16207"},
   };
   if(selected){
     const m=meta[selected];const seqs=SEQUENCES[selected];
     return <div>
-      <div style={{display:"flex",alignItems:"center",gap:"0.8rem",marginBottom:"1.5rem"}}>
-        <Btn onClick={()=>{setSelected(null);setOpen(null)}} color="#1c2030" textColor="#6b7280" sm>← Retour</Btn>
-        <div style={{fontSize:"1.1rem",fontWeight:800,textTransform:"uppercase",letterSpacing:1}}>{m.icon} {m.title} — Progression annuelle</div>
-      </div>
+      <PageHeader small icon={m.icon} title={m.title} subtitle="Progression annuelle" back={<Btn onClick={()=>{setSelected(null);setOpen(null)}} variant="secondary" sm>← Retour</Btn>}/>
       {seqs.map((seq,i)=>(
-        <div key={i} style={{background:"#151820",border:"1px solid rgba(255,255,255,0.07)",borderRadius:12,marginBottom:"0.6rem",overflow:"hidden"}}>
-          <div onClick={()=>setOpen(open===i?null:i)} style={{padding:"0.9rem 1.2rem",display:"flex",alignItems:"center",gap:"0.8rem",cursor:"pointer"}}>
-            <div style={{fontSize:"1.5rem",fontWeight:900,color:m.color,minWidth:40,fontFamily:"monospace"}}>{seq.num}</div>
-            <div style={{flex:1}}><div style={{fontWeight:700}}>{seq.title}</div><div style={{fontSize:"0.72rem",color:"#6b7280",marginTop:"0.2rem"}}>📅 {seq.periode} · {seq.semaines}</div></div>
-            <span style={{color:"#6b7280",fontSize:"0.8rem",transform:open===i?"rotate(90deg)":"none",transition:"0.2s",display:"inline-block"}}>▶</span>
-          </div>
-          {open===i&&<div style={{padding:"0 1.2rem 1rem",borderTop:"1px solid rgba(255,255,255,0.07)"}}>
+        <div key={i} className="acc">
+          <button type="button" className="acc-head" aria-expanded={open===i} onClick={()=>setOpen(open===i?null:i)}>
+            <span className="acc-num num" style={{color:ink(m.color)}}>{seq.num}</span>
+            <span className="acc-text"><span className="acc-title">{seq.title}</span><span className="acc-meta">📅 {seq.periode} · {seq.semaines}</span></span>
+            <span className="acc-chevron" aria-hidden="true">▶</span>
+          </button>
+          {open===i&&<div className="acc-body">
             {seq.resources.map((r,j)=>(
-              <div key={j} style={{display:"flex",alignItems:"center",gap:"0.7rem",padding:"0.55rem 0.8rem",borderRadius:8,marginTop:"0.4rem",background:"rgba(255,255,255,0.03)"}}>
-                <span style={{fontSize:"1rem",minWidth:20,textAlign:"center"}}>{r.icon}</span>
-                <span style={{flex:1,fontSize:"0.82rem",fontWeight:500}}>{r.name}</span>
-                <span style={{...s.badge(r.s==="ok"?"rgba(34,211,160,0.15)":r.s==="wip"?"rgba(255,107,43,0.15)":"rgba(107,114,128,0.2)",r.s==="ok"?"#22d3a0":r.s==="wip"?"#ff6b2b":"#6b7280")}}>{r.s==="ok"?"Disponible":r.s==="wip"?"En cours":"Bientôt"}</span>
+              <div key={j} className="res">
+                <span className="res-icon" aria-hidden="true">{r.icon}</span>
+                <span className="res-name">{r.name}</span>
+                <span className="badge" style={tone(r.s==="ok"?"#15803d":r.s==="wip"?"#8c2f39":"#5b6472")}>{r.s==="ok"?"Disponible":r.s==="wip"?"En cours":"Bientôt"}</span>
               </div>
             ))}
           </div>}
@@ -521,18 +577,20 @@ function Classes(){
     </div>;
   }
   return <div>
-    <div style={{fontSize:"1.4rem",fontWeight:900,textTransform:"uppercase",letterSpacing:1,marginBottom:"0.3rem"}}>Mes Classes</div>
-    <div style={{fontSize:"0.82rem",color:"#6b7280",marginBottom:"1.5rem"}}>Progressions pédagogiques annuelles</div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:"1.2rem"}}>
+    <PageHeader icon="📚" title="Mes Classes" subtitle="Progressions pédagogiques annuelles"/>
+    <div className="grid-auto" style={{"--min":"220px",gap:"1.2rem"}}>
       {Object.entries(meta).map(([k,m])=>(
-        <div key={k} onClick={()=>setSelected(k)} style={{background:"#151820",border:"1px solid rgba(255,255,255,0.07)",borderRadius:14,overflow:"hidden",cursor:"pointer"}}>
-          <div style={{padding:"1.5rem",borderBottom:`3px solid ${m.color}`,background:`linear-gradient(135deg,${m.color}10,#151820)`}}>
+        <div key={k} onClick={()=>setSelected(k)} className="class-card card-accent" style={{"--accent":m.color}}>
+          <div className="class-card-head">
             <Badge type={k}>{m.label}</Badge>
-            <div style={{fontSize:"2rem",margin:"0.5rem 0 0.3rem"}}>{m.icon}</div>
-            <div style={{fontSize:"1.3rem",fontWeight:900,textTransform:"uppercase",letterSpacing:1}}>{m.title}</div>
-            <div style={{fontSize:"0.75rem",color:"#6b7280",marginTop:"0.2rem"}}>{m.sub}</div>
+            <div className="class-card-icon" aria-hidden="true">{m.icon}</div>
+            <h2 className="class-card-title">{m.title}</h2>
+            <div className="page-sub">{m.sub}</div>
           </div>
-          <div style={{padding:"1rem 1.5rem"}}><div style={{fontSize:"0.75rem",color:"#6b7280",marginBottom:"0.8rem"}}>{SEQUENCES[k].length} séquences</div><Btn style={{width:"100%"}}>Voir la progression →</Btn></div>
+          <div className="class-card-foot">
+            <div className="hint" style={{marginBottom:"0.8rem"}}>{SEQUENCES[k].length} séquence{SEQUENCES[k].length>1?"s":""}</div>
+            <Btn style={{width:"100%"}}>Voir la progression →</Btn>
+          </div>
         </div>
       ))}
     </div>
@@ -556,41 +614,40 @@ function Notes(){
 
   const students=dbProfiles.length>0?dbProfiles:STUDENTS;
   const filtered=filter==="all"?students:students.filter(st=>(st.classe||"").startsWith(filter));
+  const headers=["Élève","Classe","XP","Niveau",dbProfiles.length===0?"Seq 1":"",dbProfiles.length===0?"Moyenne":""].filter(Boolean);
 
   return <div>
-    <div style={{fontSize:"1.4rem",fontWeight:900,textTransform:"uppercase",letterSpacing:1,marginBottom:"0.3rem"}}>Notes & Suivi</div>
-    <div style={{fontSize:"0.82rem",color:"#6b7280",marginBottom:"1.2rem"}}>
-      {dbProfiles.length>0?`${dbProfiles.length} élèves inscrits en temps réel`:"Données de démonstration"}
-    </div>
-    <div style={{display:"flex",gap:"0.5rem",marginBottom:"1.2rem",flexWrap:"wrap"}}>
-      {[["all","Tous","#ff6b2b"],["seconde","🏛️ Seconde","#3d9fff"],["premiere","📐 1ère TBAA","#a78bfa"],["terminale","🏗️ Terminale TBAA","#ffd166"]].map(([f,label,col])=>(
-        <Btn key={f} onClick={()=>setFilter(f)} color={filter===f?col:"#1c2030"} textColor={filter===f?"white":"#6b7280"} sm>{label}</Btn>
+    <PageHeader icon="📊" title="Notes & Suivi" subtitle={dbProfiles.length>0?`${dbProfiles.length} élèves inscrits en temps réel`:"Données de démonstration"}/>
+    <div className="chip-row" role="group" aria-label="Filtrer par classe" style={{marginBottom:"1.2rem"}}>
+      {[["all","Tous","#8c2f39"],["seconde","🏛️ Seconde","#0e7490"],["premiere","📐 1ère TBAA","#6d28d9"],["terminale","🏗️ Terminale TBAA","#a16207"]].map(([f,label,col])=>(
+        <Chip key={f} active={filter===f} color={col} onClick={()=>setFilter(f)}>{label}</Chip>
       ))}
     </div>
-    {loading?<Card><div style={{textAlign:"center",color:"#6b7280",padding:"2rem"}}>⏳ Chargement des élèves...</div></Card>:(
+    {loading?<Card><div role="status" style={{textAlign:"center",color:"#5b6472",padding:"2rem"}}>⏳ Chargement des élèves...</div></Card>:(
       <Card>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:"0.82rem"}}>
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="Tableau des notes et du suivi">
+          <table className="table">
             <thead>
-              <tr>{["Élève","Classe","XP","Niveau",dbProfiles.length===0?"Seq 1":"",dbProfiles.length===0?"Moyenne":""].filter(Boolean).map(h=>(
-                <th key={h} style={{background:"#0d0f14",padding:"0.6rem 0.8rem",textAlign:"left",fontSize:"0.68rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>{h}</th>
+              <tr>{headers.map(h=>(
+                <th key={h} scope="col" className={h==="XP"?"r":undefined}>{h}</th>
               ))}</tr>
             </thead>
             <tbody>
               {filtered.map((st,i)=>{
                 const xp=st.xp||0;
                 const {current}=getLevelInfo(xp);
-                return <tr key={st.name||st.nom||i} style={{borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
-                  <td style={{padding:"0.65rem 0.8rem",fontWeight:600}}>{st.nom||st.name}</td>
-                  <td style={{padding:"0.65rem 0.8rem"}}><span style={{fontSize:"0.75rem",fontWeight:600,color:"#e8eaf0"}}>{
+                return <tr key={st.name||st.nom||i}>
+                  <td className="cell-name" title={st.nom||st.name}>{st.nom||st.name}</td>
+                  <td>{
                     {seconde:"🏛️ Seconde",premiere:"📐 1ère TBAA",terminale:"🏗️ Terminale TBAA"}[st.classe]||st.classe
-                  }</span></td>
-                  <td style={{padding:"0.65rem 0.8rem",fontFamily:"monospace",color:"#ffd166",fontWeight:700}}>{xp}</td>
-                  <td style={{padding:"0.65rem 0.8rem"}}><span style={{color:current.color,fontWeight:700}}>{current.icon} {current.name}</span></td>
-                  {st.s1!==undefined&&<td style={{padding:"0.65rem 0.8rem"}}><NotePill val={st.s1}/></td>}
-                  {st.avg!==undefined&&<td style={{padding:"0.65rem 0.8rem"}}><NotePill val={st.avg}/></td>}
+                  }</td>
+                  <td className="r num" style={{color:"#854d0e",fontWeight:700}}>{xp}</td>
+                  <td><span style={{color:ink(current.color),fontWeight:700}}>{current.icon} {current.name}</span></td>
+                  {st.s1!==undefined&&<td><NotePill val={st.s1}/></td>}
+                  {st.avg!==undefined&&<td><NotePill val={st.avg}/></td>}
                 </tr>;
               })}
+              {filtered.length===0&&<tr><td colSpan={headers.length} style={{textAlign:"center",color:"#5b6472",padding:"1.5rem 0.8rem",whiteSpace:"normal"}}>Aucun élève dans cette classe pour le moment.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -620,6 +677,9 @@ function Kahoot({onAddXP}){
   const [combo,setCombo]=useState(0);
   const timerRef=useRef(null);
   const colors=["#e74c3c","#3498db","#2ecc71","#f39c12"];
+
+  // Changement d'écran ou de question : on repart du haut de la page
+  useEffect(()=>{window.scrollTo(0,0);},[mode,qIdx]);
 
   const startQuiz=(quiz)=>{
     const initScores={};STUDENTS.forEach(st=>{initScores[st.name]=0;});
@@ -673,36 +733,41 @@ function Kahoot({onAddXP}){
   if(mode==="play"&&playing){
     const q=playing.questions[qIdx];
     const sorted=Object.entries(scores).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const timerColor=timer<=5?"#c81e3a":timer<=10?"#a16207":"#8c2f39";
     return <div>
-      <div style={{display:"flex",alignItems:"center",gap:"0.8rem",marginBottom:"1.2rem"}}>
-        <Btn onClick={()=>{clearInterval(timerRef.current);setMode("menu");}} color="#1c2030" textColor="#6b7280" sm>✕ Stop</Btn>
-        <div style={{fontWeight:800,fontSize:"1rem",textTransform:"uppercase",flex:1}}>{playing.title}</div>
-        {combo>=2&&<span style={{...s.badge("rgba(255,107,43,0.2)","#ff6b2b")}}>🔥 Combo x{combo}</span>}
-        <div style={{fontSize:"0.8rem",color:"#6b7280"}}>Q {qIdx+1}/{playing.questions.length}</div>
+      <PageHeader small stack title={playing.title} back={<Btn onClick={()=>{clearInterval(timerRef.current);setMode("menu");}} variant="secondary" sm>✕ Stop</Btn>}>
+        {combo>=2&&<span className="badge" style={tone("#8c2f39")}>🔥 Combo x{combo}</span>}
+        <span className="page-meta num">Question {qIdx+1}/{playing.questions.length}</span>
+      </PageHeader>
+      <div className="card card-accent kh-question">
+        <h2 className="kh-q">{q.q}</h2>
+        <div className="kh-timer" role="timer" aria-label={`${timer} secondes restantes`} style={{color:timerColor}}>{timer}<small>s</small></div>
+        <div className="kh-timebar" aria-hidden="true"><div key={qIdx} style={{width:`${Math.max(0,Math.min(100,(timer/(q.time||30))*100))}%`,background:timerColor}}/></div>
       </div>
-      <div style={{background:"#1c2030",borderRadius:16,padding:"2rem",textAlign:"center",marginBottom:"1.5rem",border:"1px solid rgba(255,255,255,0.07)"}}>
-        <div style={{fontSize:"1.2rem",fontWeight:700,marginBottom:"0.8rem",lineHeight:1.3}}>{q.q}</div>
-        <div style={{fontSize:"3rem",fontWeight:900,color:timer<=5?"#ff4d6d":timer<=10?"#ffd166":"#ff6b2b",fontFamily:"monospace"}}>{timer}</div>
-      </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.8rem",marginBottom:"1rem"}}>
-        {(q.answers||[]).map((a,i)=>(
-          <button key={i} onClick={()=>answer(i)} disabled={chosen!==null} style={{padding:"1rem",borderRadius:12,border:"none",background:chosen===null?colors[i]:i===q.correct?"#27ae60":i===chosen?"#c0392b":colors[i],color:"white",fontFamily:"inherit",fontSize:"0.95rem",fontWeight:700,cursor:chosen===null?"pointer":"default",opacity:chosen!==null&&i!==q.correct&&i!==chosen?0.4:1,outline:i===q.correct&&chosen!==null?"3px solid #22d3a0":"none",transition:"all 0.2s"}}>{a}</button>
-        ))}
+      <div className="kh-grid">
+        {(q.answers||[]).map((a,i)=>{
+          // Après la réponse : bonne réponse en vert, mauvais choix en rouge, les autres en pastel (texte toujours lisible).
+          const state=chosen===null?"idle":i===q.correct?"correct":i===chosen?"wrong":"muted";
+          return <button type="button" key={i} onClick={()=>answer(i)} disabled={chosen!==null} className="kh-answer" data-state={state} style={{"--kh":colors[i],...(state==="muted"?{background:`${colors[i]}33`}:{})}}>
+            <span className="kh-letter" aria-hidden="true">{state==="correct"?"✓":state==="wrong"?"✕":LETTRES[i]}</span>
+            <span className="kh-text">{a}</span>
+          </button>;
+        })}
       </div>
       {chosen!==null&&<>
-        <div style={{textAlign:"center",padding:"0.8rem",borderRadius:10,background:chosen===q.correct?"rgba(34,211,160,0.15)":"rgba(255,77,109,0.15)",color:chosen===q.correct?"#22d3a0":"#ff4d6d",fontWeight:700,marginBottom:"0.5rem"}}>
+        <div className="banner" data-tone={chosen===q.correct?"ok":"ko"} role="status">
           {chosen===q.correct?`✅ Correct ! +${XP_GAINS.kahoot_correct} XP`:"❌ Incorrect — bonne réponse : "+q.answers[q.correct]}
         </div>
-        <div style={{background:"#1c2030",borderRadius:12,padding:"1rem",marginBottom:"1rem"}}>
-          <div style={{fontWeight:700,textTransform:"uppercase",fontSize:"0.8rem",marginBottom:"0.6rem"}}>🏆 Scores</div>
+        <Card style={{marginBottom:"1rem"}}>
+          <div className="overline" style={{marginBottom:"0.3rem"}}>🏆 Scores</div>
           {sorted.map(([name,pts],i)=>(
-            <div key={name} style={{display:"flex",alignItems:"center",gap:"0.8rem",padding:"0.4rem 0",borderBottom:"1px solid rgba(255,255,255,0.07)",fontSize:"0.85rem"}}>
-              <span style={{fontFamily:"monospace",color:"#ff6b2b",minWidth:24}}>{i+1}</span>
-              <span style={{flex:1,fontWeight:600}}>{name}</span>
-              <span style={{fontFamily:"monospace",color:"#ffd166"}}>{pts} pts</span>
+            <div key={name} className="score-row">
+              <span className="score-pos num">{i+1}</span>
+              <span className="score-name">{name}</span>
+              <span className="score-pts num">{pts} pts</span>
             </div>
           ))}
-        </div>
+        </Card>
         <div style={{textAlign:"center"}}><Btn onClick={nextQ}>{qIdx+1<playing.questions.length?"Question suivante →":"Terminer 🏆"}</Btn></div>
       </>}
     </div>;
@@ -710,17 +775,17 @@ function Kahoot({onAddXP}){
 
   if(mode==="result"){
     const sorted=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
-    return <div style={{textAlign:"center",padding:"2rem"}}>
-      <div style={{fontSize:"3rem",marginBottom:"0.5rem"}}>🏆</div>
-      <div style={{fontSize:"1.5rem",fontWeight:900,marginBottom:"0.5rem"}}>Quiz terminé !</div>
-      <div style={{background:"rgba(255,209,102,0.12)",border:"1px solid rgba(255,209,102,0.3)",borderRadius:12,padding:"0.8rem",marginBottom:"1.5rem",color:"#ffd166",fontWeight:700}}>⭐ +{XP_GAINS.kahoot_win} XP bonus !</div>
-      <Card style={{textAlign:"left",maxWidth:400,margin:"0 auto 1.5rem"}}>
+    return <div className="result">
+      <div className="result-emoji" aria-hidden="true">🏆</div>
+      <h1 className="page-title" style={{marginBottom:"1rem"}}>Quiz terminé !</h1>
+      <Callout style={{textAlign:"center",fontSize:"0.95rem",marginBottom:"1.5rem"}}>⭐ +{XP_GAINS.kahoot_win} XP bonus !</Callout>
+      <Card style={{textAlign:"left",marginBottom:"1.5rem"}}>
         <SectionTitle>Classement final</SectionTitle>
         {sorted.map(([name,pts],i)=>(
-          <div key={name} style={{display:"flex",alignItems:"center",gap:"0.8rem",padding:"0.5rem 0",borderBottom:"1px solid rgba(255,255,255,0.07)",fontSize:"0.88rem"}}>
-            <span style={{fontFamily:"monospace",fontSize:"1.1rem",color:"#ffd166",minWidth:28}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":i+1}</span>
-            <span style={{flex:1,fontWeight:600}}>{name}</span>
-            <span style={{fontFamily:"monospace",color:"#ffd166"}}>{pts} pts</span>
+          <div key={name} className="score-row">
+            <span className="score-pos num" style={{color:"#854d0e",fontSize:"1.05rem"}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":i+1}</span>
+            <span className="score-name">{name}</span>
+            <span className="score-pts num">{pts} pts</span>
           </div>
         ))}
       </Card>
@@ -732,16 +797,15 @@ function Kahoot({onAddXP}){
     const addQ=()=>setManualQs(prev=>[...prev,{q:"",answers:["","","",""],correct:0,time:30}]);
     const updQ=(i,field,val)=>setManualQs(prev=>prev.map((q,qi)=>qi===i?{...q,[field]:val}:q));
     const updAns=(qi,ai,val)=>setManualQs(prev=>prev.map((q,i)=>i===qi?{...q,answers:q.answers.map((a,j)=>j===ai?val:a)}:q));
+    // Sans aucune question saisie, le quiz serait vide : les boutons d'enregistrement restent désactivés.
+    const canSave=manualQs.some(q=>q.q.trim());
     return <div>
-      <div style={{display:"flex",alignItems:"center",gap:"0.8rem",marginBottom:"1.2rem"}}>
-        <Btn onClick={()=>setMode("menu")} color="#1c2030" textColor="#6b7280" sm>← Retour</Btn>
-        <div style={{fontWeight:800,textTransform:"uppercase"}}>✏️ Créer un quiz</div>
-      </div>
+      <PageHeader small icon="✏️" title="Créer un quiz" back={<Btn onClick={()=>setMode("menu")} variant="secondary" sm>← Retour</Btn>}/>
       <Card style={{marginBottom:"1rem"}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.8rem"}}>
-          <div><div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginBottom:"0.3rem"}}>Titre</div><input style={s.input} placeholder="Titre du quiz..." value={quizTitle} onChange={e=>setQuizTitle(e.target.value)}/></div>
-          <div><div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginBottom:"0.3rem"}}>Filière</div>
-            <select style={s.input} value={quizFiliere} onChange={e=>setQuizFiliere(e.target.value)}>
+        <div className="grid-2 stack-sm" style={{gap:"0.8rem"}}>
+          <div><Label htmlFor="quiz-titre">Titre</Label><input id="quiz-titre" className="field" placeholder="Titre du quiz..." value={quizTitle} onChange={e=>setQuizTitle(e.target.value)}/></div>
+          <div><Label htmlFor="quiz-filiere">Filière</Label>
+            <select id="quiz-filiere" className="field" value={quizFiliere} onChange={e=>setQuizFiliere(e.target.value)}>
               <option value="seconde">🏛️ Seconde</option><option value="premiere">📐 1ère TBAA</option><option value="terminale">🏗️ Terminale TBAA</option>
             </select>
           </div>
@@ -749,80 +813,78 @@ function Kahoot({onAddXP}){
       </Card>
       {manualQs.map((mq,qi)=>(
         <Card key={qi} style={{marginBottom:"0.8rem"}}>
-          <div style={{fontSize:"0.72rem",fontWeight:700,color:"#ff6b2b",textTransform:"uppercase",letterSpacing:1,marginBottom:"0.6rem"}}>Question {qi+1}</div>
-          <input style={{...s.input,marginBottom:"0.6rem"}} placeholder="Tapez votre question..." value={mq.q} onChange={e=>updQ(qi,"q",e.target.value)}/>
-          <div style={{display:"flex",gap:"0.4rem",marginBottom:"0.6rem",alignItems:"center"}}>
-            <span style={{fontSize:"0.72rem",color:"#6b7280"}}>Temps:</span>
-            {[15,20,30,45,60].map(t=><Btn key={t} onClick={()=>updQ(qi,"time",t)} color={mq.time===t?"#ff6b2b":"#1c2030"} textColor={mq.time===t?"white":"#6b7280"} sm>{t}s</Btn>)}
+          <div className="overline" style={{color:"#8c2f39",marginBottom:"0.6rem"}}>Question {qi+1}</div>
+          <input className="field" style={{marginBottom:"0.6rem"}} aria-label={`Énoncé de la question ${qi+1}`} placeholder="Tapez votre question..." value={mq.q} onChange={e=>updQ(qi,"q",e.target.value)}/>
+          <div className="chip-row" role="group" aria-label={`Temps de réponse de la question ${qi+1}`} style={{marginBottom:"0.7rem"}}>
+            <span className="hint">Temps :</span>
+            {[15,20,30,45,60].map(t=><Chip key={t} active={mq.time===t} onClick={()=>updQ(qi,"time",t)}>{t}s</Chip>)}
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem"}}>
+          <div className="grid-2 stack-sm" style={{gap:"0.5rem"}}>
             {mq.answers.map((a,ai)=>(
-              <div key={ai} style={{display:"flex",alignItems:"center",gap:"0.5rem",background:"#1c2030",border:`1px solid ${mq.correct===ai?colors[ai]:"rgba(255,255,255,0.07)"}`,borderRadius:8,padding:"0.4rem 0.6rem"}}>
-                <div style={{width:10,height:10,borderRadius:"50%",background:colors[ai],flexShrink:0}}/>
-                <input style={{flex:1,background:"none",border:"none",color:"#e8eaf0",fontSize:"0.82rem",outline:"none",fontFamily:"inherit"}} placeholder={`Réponse ${["A","B","C","D"][ai]}`} value={a} onChange={e=>updAns(qi,ai,e.target.value)}/>
-                <button onClick={()=>updQ(qi,"correct",ai)} style={{background:"none",border:"none",cursor:"pointer",color:mq.correct===ai?"#22d3a0":"#6b7280",fontSize:"1rem"}}>✓</button>
+              <div key={ai} className="answer-edit" data-correct={mq.correct===ai}>
+                <span className="dot" style={{background:colors[ai]}} aria-hidden="true"/>
+                <input aria-label={`Réponse ${LETTRES[ai]} de la question ${qi+1}`} placeholder={`Réponse ${LETTRES[ai]}`} value={a} onChange={e=>updAns(qi,ai,e.target.value)}/>
+                <button type="button" className="answer-check" aria-pressed={mq.correct===ai} aria-label={`Réponse ${LETTRES[ai]} : bonne réponse`} title="Marquer comme bonne réponse" onClick={()=>updQ(qi,"correct",ai)}>✓</button>
               </div>
             ))}
           </div>
         </Card>
       ))}
-      <div style={{display:"flex",gap:"0.6rem",flexWrap:"wrap"}}>
-        <Btn onClick={addQ} color="#1c2030" textColor="#6b7280">+ Ajouter question</Btn>
-        <Btn onClick={()=>{const q={id:Date.now(),title:quizTitle||"Quiz sans titre",filiere:quizFiliere,questions:manualQs.filter(q=>q.q.trim())};setQuizzes(p=>[...p,q]);startQuiz(q);}}>💾 Sauver & Lancer</Btn>
-        <Btn onClick={()=>{const q={id:Date.now(),title:quizTitle||"Quiz sans titre",filiere:quizFiliere,questions:manualQs.filter(q=>q.q.trim())};setQuizzes(p=>[...p,q]);setMode("menu");}} color="#1c2030" textColor="#6b7280">💾 Sauver seulement</Btn>
+      <div className="btn-row">
+        <Btn onClick={addQ} variant="secondary">+ Ajouter question</Btn>
+        <Btn disabled={!canSave} onClick={()=>{const q={id:Date.now(),title:quizTitle||"Quiz sans titre",filiere:quizFiliere,questions:manualQs.filter(q=>q.q.trim())};setQuizzes(p=>[...p,q]);startQuiz(q);}}>💾 Sauver & Lancer</Btn>
+        <Btn disabled={!canSave} onClick={()=>{const q={id:Date.now(),title:quizTitle||"Quiz sans titre",filiere:quizFiliere,questions:manualQs.filter(q=>q.q.trim())};setQuizzes(p=>[...p,q]);setMode("menu");}} variant="secondary">💾 Sauver seulement</Btn>
       </div>
+      {!canSave&&<p className="hint" style={{marginTop:"0.6rem"}}>Saisissez au moins une question pour enregistrer le quiz.</p>}
     </div>;
   }
 
   if(mode==="ia"){
     return <div>
-      <div style={{display:"flex",alignItems:"center",gap:"0.8rem",marginBottom:"1.2rem"}}>
-        <Btn onClick={()=>setMode("menu")} color="#1c2030" textColor="#6b7280" sm>← Retour</Btn>
-        <div style={{fontWeight:800,textTransform:"uppercase"}}>🤖 Génération IA</div>
-      </div>
-      <div style={{background:"linear-gradient(135deg,rgba(167,139,250,0.08),rgba(255,107,43,0.05))",border:"1px solid rgba(167,139,250,0.2)",borderRadius:14,padding:"1.5rem",marginBottom:"1rem"}}>
-        <div style={{color:"#a78bfa",fontWeight:800,textTransform:"uppercase",letterSpacing:1,marginBottom:"1rem"}}>🤖 L'IA génère vos questions</div>
-        <div style={{marginBottom:"0.8rem"}}>
-          <div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginBottom:"0.4rem"}}>Filière</div>
-          <div style={{display:"flex",gap:"0.4rem",flexWrap:"wrap"}}>
+      <PageHeader small icon="🤖" title="Génération IA" back={<Btn onClick={()=>setMode("menu")} variant="secondary" sm>← Retour</Btn>}/>
+      <div className="card card-accent" style={{"--accent":"#6d28d9",marginBottom:"1rem"}}>
+        <h2 className="card-title">L'IA génère vos questions</h2>
+        <div className="form-row">
+          <div className="label" id="ia-filiere">Filière</div>
+          <div className="chip-row" role="group" aria-labelledby="ia-filiere">
             {[["seconde","🏛️ Seconde"],["premiere","📐 1ère TBAA"],["terminale","🏗️ Terminale TBAA"]].map(([k,label])=>(
-              <button key={k} onClick={()=>setIaFiliere(k)} style={{padding:"0.4rem 0.9rem",background:iaFiliere===k?"rgba(167,139,250,0.2)":"#1c2030",border:`1px solid ${iaFiliere===k?"rgba(167,139,250,0.5)":"rgba(255,255,255,0.07)"}`,borderRadius:20,fontSize:"0.78rem",fontWeight:600,color:iaFiliere===k?"#a78bfa":"#6b7280",cursor:"pointer",fontFamily:"inherit"}}>{label}</button>
+              <Chip key={k} active={iaFiliere===k} color="#6d28d9" onClick={()=>setIaFiliere(k)}>{label}</Chip>
             ))}
           </div>
         </div>
-        <div style={{marginBottom:"0.8rem"}}>
-          <div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginBottom:"0.4rem"}}>Sujet</div>
-          <input style={s.input} placeholder="Ex: Protection des personnes, disjoncteurs..." value={iaTopique} onChange={e=>setIaTopique(e.target.value)}/>
+        <div className="form-row">
+          <Label htmlFor="ia-sujet">Sujet</Label>
+          <input id="ia-sujet" className="field" placeholder="Ex: Protection des personnes, disjoncteurs..." value={iaTopique} onChange={e=>setIaTopique(e.target.value)}/>
         </div>
-        <div style={{marginBottom:"1rem"}}>
-          <div style={{fontSize:"0.72rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginBottom:"0.4rem"}}>Nombre</div>
-          <div style={{display:"flex",gap:"0.4rem"}}>
-            {[5,10,15].map(n=><Btn key={n} onClick={()=>setIaNb(n)} color={iaNb===n?"#a78bfa":"#1c2030"} textColor={iaNb===n?"white":"#6b7280"} sm>{n} questions</Btn>)}
+        <div className="form-row" style={{marginBottom:"1.1rem"}}>
+          <div className="label" id="ia-nombre">Nombre</div>
+          <div className="chip-row" role="group" aria-labelledby="ia-nombre">
+            {[5,10,15].map(n=><Chip key={n} active={iaNb===n} color="#6d28d9" onClick={()=>setIaNb(n)}>{n} questions</Chip>)}
           </div>
         </div>
-        <Btn onClick={()=>generateQuestions(iaTopique)} color="#a78bfa" style={{opacity:loading?0.6:1}}>
+        <Btn onClick={()=>generateQuestions(iaTopique)} color="#6d28d9" disabled={loading} aria-busy={loading}>
           {loading?"⏳ Génération...":"🤖 Générer les questions"}
         </Btn>
       </div>
       {generated.length>0&&<>
         {generated.map((q,i)=>(
           <Card key={i} style={{marginBottom:"0.6rem"}}>
-            <div style={{fontSize:"0.72rem",color:"#a78bfa",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:"0.4rem"}}>Q{i+1} · {q.time}s</div>
+            <div className="overline" style={{color:"#6d28d9",marginBottom:"0.4rem"}}>Q{i+1} · {q.time}s</div>
             <div style={{fontWeight:600,marginBottom:"0.6rem"}}>{q.q}</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.4rem"}}>
+            <div className="grid-2 stack-sm" style={{gap:"0.4rem"}}>
               {(q.answers||[]).map((a,ai)=>(
-                <div key={ai} style={{display:"flex",alignItems:"center",gap:"0.4rem",padding:"0.4rem 0.6rem",borderRadius:6,background:ai===q.correct?"rgba(34,211,160,0.1)":"rgba(255,255,255,0.03)",border:`1px solid ${ai===q.correct?"rgba(34,211,160,0.3)":"rgba(255,255,255,0.07)"}`}}>
-                  <div style={{width:8,height:8,borderRadius:"50%",background:colors[ai],flexShrink:0}}/>
-                  <span style={{fontSize:"0.8rem"}}>{a}</span>
-                  {ai===q.correct&&<span style={{marginLeft:"auto",color:"#22d3a0",fontSize:"0.75rem"}}>✓</span>}
+                <div key={ai} className="answer-view" data-correct={ai===q.correct}>
+                  <span className="dot" style={{background:colors[ai]}} aria-hidden="true"/>
+                  <span>{a}</span>
+                  {ai===q.correct&&<span role="img" aria-label="Bonne réponse" style={{marginLeft:"auto",fontWeight:700}}>✓</span>}
                 </div>
               ))}
             </div>
           </Card>
         ))}
-        <div style={{display:"flex",gap:"0.6rem",marginTop:"1rem"}}>
+        <div className="btn-row" style={{marginTop:"1rem"}}>
           <Btn onClick={()=>{const q={id:Date.now(),title:`Quiz IA — ${iaFiliere}`,filiere:iaFiliere,questions:generated};setQuizzes(p=>[...p,q]);startQuiz(q);}}>🚀 Lancer</Btn>
-          <Btn onClick={()=>{setQuizzes(p=>[...p,{id:Date.now(),title:`Quiz IA — ${iaFiliere}`,filiere:iaFiliere,questions:generated}]);setMode("menu");}} color="#1c2030" textColor="#6b7280">💾 Sauvegarder</Btn>
+          <Btn onClick={()=>{setQuizzes(p=>[...p,{id:Date.now(),title:`Quiz IA — ${iaFiliere}`,filiere:iaFiliere,questions:generated}]);setMode("menu");}} variant="secondary">💾 Sauvegarder</Btn>
         </div>
       </>}
     </div>;
@@ -830,59 +892,53 @@ function Kahoot({onAddXP}){
 
   if(mode==="pdf"){
     return <div>
-      <div style={{display:"flex",alignItems:"center",gap:"0.8rem",marginBottom:"1.2rem"}}>
-        <Btn onClick={()=>setMode("menu")} color="#1c2030" textColor="#6b7280" sm>← Retour</Btn>
-        <div style={{fontWeight:800,textTransform:"uppercase"}}>📄 Quiz depuis votre cours</div>
-      </div>
-      <Card>
-        <div style={{color:"#22d3a0",fontWeight:800,textTransform:"uppercase",letterSpacing:1,marginBottom:"0.8rem"}}>📄 Collez votre cours ici</div>
-        <textarea style={{...s.input,height:160,resize:"vertical"}} placeholder="Collez le texte de votre cours ici..." value={courseText} onChange={e=>setCourseText(e.target.value)}/>
+      <PageHeader small icon="📄" title="Quiz depuis votre cours" back={<Btn onClick={()=>setMode("menu")} variant="secondary" sm>← Retour</Btn>}/>
+      <div className="card card-accent" style={{"--accent":"#15803d"}}>
+        <h2 className="card-title"><label htmlFor="cours-texte">Collez votre cours ici</label></h2>
+        <textarea id="cours-texte" className="field" placeholder="Collez le texte de votre cours ici..." value={courseText} onChange={e=>setCourseText(e.target.value)}/>
         <div style={{marginTop:"0.8rem"}}>
-          <Btn onClick={()=>generateQuestions(courseText,true)} color="#22d3a0" style={{color:"#0d0f14",opacity:loading?0.6:1}}>
+          <Btn onClick={()=>generateQuestions(courseText,true)} color="#15803d" disabled={loading} aria-busy={loading}>
             {loading?"⏳ Génération...":"🤖 Extraire les questions"}
           </Btn>
         </div>
-      </Card>
+      </div>
       {generated.length>0&&<>
-        <div style={{margin:"1rem 0 0.5rem",fontWeight:700}}>✅ {generated.length} questions générées</div>
+        <div role="status" style={{margin:"1rem 0 0.5rem",fontWeight:700}}>✅ {generated.length} questions générées</div>
         {generated.map((q,i)=>(
           <Card key={i} style={{marginBottom:"0.6rem"}}>
             <div style={{fontWeight:600,marginBottom:"0.5rem"}}>{i+1}. {q.q}</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.3rem"}}>
-              {(q.answers||[]).map((a,ai)=><div key={ai} style={{fontSize:"0.8rem",padding:"0.3rem 0.5rem",borderRadius:5,background:ai===q.correct?"rgba(34,211,160,0.1)":"rgba(255,255,255,0.03)",color:ai===q.correct?"#22d3a0":"#e8eaf0"}}>{["A","B","C","D"][ai]}. {a}</div>)}
+            <div className="grid-2 stack-sm" style={{gap:"0.4rem"}}>
+              {(q.answers||[]).map((a,ai)=><div key={ai} className="answer-view" data-correct={ai===q.correct}><span>{LETTRES[ai]}. {a}</span></div>)}
             </div>
           </Card>
         ))}
-        <div style={{display:"flex",gap:"0.6rem",marginTop:"1rem"}}>
+        <div className="btn-row" style={{marginTop:"1rem"}}>
           <Btn onClick={()=>{const q={id:Date.now(),title:"Quiz depuis cours",filiere:"terminale",questions:generated};setQuizzes(p=>[...p,q]);startQuiz(q);}}>🚀 Lancer</Btn>
-          <Btn onClick={()=>{setQuizzes(p=>[...p,{id:Date.now(),title:"Quiz depuis cours",filiere:"terminale",questions:generated}]);setMode("menu");}} color="#1c2030" textColor="#6b7280">💾 Sauvegarder</Btn>
+          <Btn onClick={()=>{setQuizzes(p=>[...p,{id:Date.now(),title:"Quiz depuis cours",filiere:"terminale",questions:generated}]);setMode("menu");}} variant="secondary">💾 Sauvegarder</Btn>
         </div>
       </>}
     </div>;
   }
 
   return <div>
-    <div style={{fontSize:"1.4rem",fontWeight:900,textTransform:"uppercase",letterSpacing:1,marginBottom:"0.3rem"}}>🎮 Kahoot</div>
-    <div style={{fontSize:"0.82rem",color:"#6b7280",marginBottom:"0.8rem"}}>Créez et lancez des quiz interactifs</div>
-    <div style={{background:"rgba(255,209,102,0.12)",border:"1px solid rgba(255,209,102,0.3)",borderRadius:10,padding:"0.6rem 1rem",marginBottom:"1.2rem",fontSize:"0.8rem",color:"#ffd166",fontWeight:600}}>
-      ⭐ +{XP_GAINS.kahoot_correct} XP par bonne réponse · +{XP_GAINS.kahoot_win} XP à la fin · Bonus combo !
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(200px,1fr))",gap:"1rem",marginBottom:"2rem"}}>
-      {[["✏️","Manuel","Tapez vos propres questions","manual","#ff6b2b"],["🤖","IA","L'IA génère les questions","ia","#a78bfa"],["📄","Depuis cours","Collez votre cours","pdf","#22d3a0"]].map(([icon,title,sub,m,col])=>(
-        <div key={m} onClick={()=>setMode(m)} style={{background:"#151820",border:`1px solid ${col}30`,borderRadius:14,padding:"1.5rem",cursor:"pointer",textAlign:"center"}}>
-          <div style={{fontSize:"2.2rem",marginBottom:"0.5rem"}}>{icon}</div>
-          <div style={{fontWeight:800,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:"0.3rem",color:col}}>{title}</div>
-          <div style={{fontSize:"0.78rem",color:"#6b7280"}}>{sub}</div>
-        </div>
+    <PageHeader icon="🎮" title="Kahoot" subtitle="Créez et lancez des quiz interactifs"/>
+    <Callout>⭐ +{XP_GAINS.kahoot_correct} XP par bonne réponse · +{XP_GAINS.kahoot_win} XP à la fin · Bonus combo !</Callout>
+    <div className="grid-auto" style={{"--min":"200px",marginBottom:"2rem"}}>
+      {[["✏️","Manuel","Tapez vos propres questions","manual","#8c2f39"],["🤖","IA","L'IA génère les questions","ia","#6d28d9"],["📄","Depuis cours","Collez votre cours","pdf","#15803d"]].map(([icon,title,sub,m,col])=>(
+        <button type="button" key={m} onClick={()=>setMode(m)} className="mode-card" style={{"--accent":col}}>
+          <span className="mode-icon" aria-hidden="true">{icon}</span>
+          <span className="mode-title">{title}</span>
+          <span className="mode-sub">{sub}</span>
+        </button>
       ))}
     </div>
-    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.8rem"}}>
-      <div style={{fontWeight:800,textTransform:"uppercase",letterSpacing:1}}>📋 Quiz sauvegardés</div>
-      <Btn onClick={()=>setMode("manual")} sm>+ Nouveau</Btn>
-    </div>
+    <SectionTitle action={<Btn onClick={()=>setMode("manual")} sm>+ Nouveau</Btn>}>📋 Quiz sauvegardés</SectionTitle>
     {quizzes.map(q=>(
-      <Card key={q.id} style={{display:"flex",alignItems:"center",gap:"1rem",marginBottom:"0.6rem"}}>
-        <div style={{flex:1}}><div style={{fontWeight:700}}>{q.title}</div><div style={{fontSize:"0.72rem",color:"#6b7280",marginTop:"0.2rem"}}><Badge type={q.filiere}>{q.filiere==="seconde"?"🏛️ Seconde":q.filiere==="premiere"?"📐 1ère TBAA":"🏗️ Terminale TBAA"}</Badge> · {q.questions.length} questions</div></div>
+      <Card key={q.id} className="quiz-row">
+        <div className="quiz-row-text">
+          <div className="quiz-row-title">{q.title}</div>
+          <div className="quiz-row-meta"><Badge type={q.filiere}>{q.filiere==="seconde"?"🏛️ Seconde":q.filiere==="premiere"?"📐 1ère TBAA":"🏗️ Terminale TBAA"}</Badge><span>{q.questions.length} question{q.questions.length>1?"s":""}</span></div>
+        </div>
         <Btn onClick={()=>startQuiz(q)} sm>▶ Lancer</Btn>
       </Card>
     ))}
@@ -903,6 +959,9 @@ function TugOfWar({onAddXP}){
   const [ansA,setAnsA]=useState("");
   const [ansB,setAnsB]=useState("");
   const [result,setResult]=useState(null);
+
+  // Changement d'écran ou de question : on repart du haut de la page
+  useEffect(()=>{window.scrollTo(0,0);},[phase,qIdx]);
 
   const addQ=()=>setQuestions(p=>[...p,{q:"",a:""}]);
   const updQ=(i,field,val)=>setQuestions(p=>p.map((q,qi)=>qi===i?{...q,[field]:val}:q));
@@ -935,15 +994,15 @@ function TugOfWar({onAddXP}){
   if(phase==="end"){
     const winner=scoreA===scoreB?null:scoreA>scoreB?teamA:teamB;
     if(winner)onAddXP(XP_GAINS.tug_win,"🏆 Tug of War — victoire !");
-    return <div style={{textAlign:"center",padding:"2rem"}}>
-      <div style={{fontSize:"3rem",marginBottom:"0.5rem"}}>🎉</div>
-      <div style={{fontSize:"1.5rem",fontWeight:900,marginBottom:"0.5rem"}}>Fin du match !</div>
-      <div style={{fontSize:"1.1rem",color:"#ffd166",fontWeight:700,marginBottom:"1rem"}}>{scoreA===scoreB?"🤝 Égalité !":scoreA>scoreB?`🏆 ${teamA}`:`🏆 ${teamB}`}</div>
-      {winner&&<div style={{background:"rgba(255,209,102,0.12)",border:"1px solid rgba(255,209,102,0.3)",borderRadius:10,padding:"0.6rem 1rem",marginBottom:"1.5rem",color:"#ffd166",fontWeight:700,fontSize:"0.85rem"}}>⭐ +{XP_GAINS.tug_win} XP pour la victoire !</div>}
-      <div style={{display:"flex",justifyContent:"center",gap:"3rem",marginBottom:"2rem"}}>
-        <div><div style={{fontSize:"2.5rem",fontWeight:900,color:"#3d9fff"}}>{scoreA}</div><div style={{fontSize:"0.8rem",color:"#6b7280"}}>{teamA}</div></div>
-        <div style={{color:"#6b7280",fontSize:"1.5rem",paddingTop:"0.5rem"}}>VS</div>
-        <div><div style={{fontSize:"2.5rem",fontWeight:900,color:"#ff4d6d"}}>{scoreB}</div><div style={{fontSize:"0.8rem",color:"#6b7280"}}>{teamB}</div></div>
+    return <div className="result">
+      <div className="result-emoji" aria-hidden="true">🎉</div>
+      <h1 className="page-title">Fin du match !</h1>
+      <div className="result-winner">{scoreA===scoreB?"🤝 Égalité !":scoreA>scoreB?`🏆 ${teamA}`:`🏆 ${teamB}`}</div>
+      {winner&&<Callout style={{textAlign:"center",marginBottom:0}}>⭐ +{XP_GAINS.tug_win} XP pour la victoire !</Callout>}
+      <div className="result-scores">
+        <div><div className="result-score num" style={{color:"#0e7490"}}>{scoreA}</div><div className="hint">{teamA}</div></div>
+        <div className="overline" style={{paddingTop:"1rem"}}>VS</div>
+        <div><div className="result-score num" style={{color:"#c81e3a"}}>{scoreB}</div><div className="hint">{teamB}</div></div>
       </div>
       <Btn onClick={()=>{setPhase("setup");setQuestions(TOW_QS[filiere].map(q=>({...q})));}}>← Rejouer</Btn>
     </div>;
@@ -952,33 +1011,34 @@ function TugOfWar({onAddXP}){
   if(phase==="play"){
     const q=questions[qIdx];
     return <div>
-      <div style={{background:"linear-gradient(180deg,#0a1628,#0d1f3c 50%,#1a0a0a)",borderRadius:16,padding:"1.5rem",marginBottom:"1rem",border:"1px solid rgba(255,255,255,0.07)"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1.2rem"}}>
-          <div style={{textAlign:"center",flex:1}}><div style={{fontWeight:900,textTransform:"uppercase",letterSpacing:1,color:"#3d9fff"}}>{teamA}</div><div style={{fontSize:"2.5rem",fontFamily:"monospace",color:"#3d9fff",lineHeight:1}}>{scoreA}</div></div>
-          <div style={{textAlign:"center",fontSize:"0.75rem",color:"#6b7280",textTransform:"uppercase"}}>VS</div>
-          <div style={{textAlign:"center",flex:1}}><div style={{fontWeight:900,textTransform:"uppercase",letterSpacing:1,color:"#ff4d6d"}}>{teamB}</div><div style={{fontSize:"2.5rem",fontFamily:"monospace",color:"#ff4d6d",lineHeight:1}}>{scoreB}</div></div>
+      <div className="card tow-board">
+        <div className="tow-scores">
+          <div className="tow-team"><div className="tow-team-name" style={{color:ink("#0e7490")}}>{teamA}</div><div className="tow-score" style={{color:"#0e7490"}}>{scoreA}</div></div>
+          <div className="overline">VS</div>
+          <div className="tow-team"><div className="tow-team-name" style={{color:ink("#c81e3a")}}>{teamB}</div><div className="tow-score" style={{color:"#c81e3a"}}>{scoreB}</div></div>
         </div>
-        <div style={{position:"relative",height:50,margin:"0.5rem 0"}}>
-          <div style={{position:"absolute",top:"50%",left:"10%",right:"10%",height:8,background:"repeating-linear-gradient(90deg,#8b6914 0px,#c9961e 4px,#8b6914 8px)",transform:"translateY(-50%)",borderRadius:4}}/>
-          <div style={{position:"absolute",top:"50%",left:`${ropePos}%`,transform:"translate(-50%,-50%)",width:20,height:20,background:"white",borderRadius:"50%",border:"3px solid #333",zIndex:2,transition:"left 0.4s ease"}}/>
+        <div className="tow-rope" aria-hidden="true">
+          <div className="tow-rope-line"/>
+          <div className="tow-center"/>
+          <div className="tow-knot" style={{left:`${ropePos}%`}}/>
         </div>
-        <div style={{display:"flex",justifyContent:"space-between",padding:"0 5%",fontSize:"2.5rem"}}><span>🏋️</span><span style={{transform:"scaleX(-1)",display:"inline-block"}}>🏋️</span></div>
+        <div className="tow-ends" aria-hidden="true"><span>🏋️</span><span style={{transform:"scaleX(-1)",display:"inline-block"}}>🏋️</span></div>
       </div>
-      <div style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:"1.2rem",textAlign:"center",marginBottom:"1rem",border:"1px solid rgba(255,255,255,0.07)"}}>
-        <div style={{fontSize:"1.1rem",fontWeight:700,marginBottom:"0.3rem"}}>{q.q}</div>
-        <div style={{fontSize:"0.75rem",color:"#6b7280"}}>Question {qIdx+1}/{questions.length} · <span style={{color:"#22d3a0"}}>+{XP_GAINS.tug_correct} XP si correct</span></div>
+      <div className="card kh-question" style={{marginBottom:"1rem"}}>
+        <h1 className="kh-q">{q.q}</h1>
+        <div className="page-sub num" style={{marginTop:"0.4rem"}}>Question {qIdx+1}/{questions.length} · <span style={{color:"#166534",fontWeight:600}}>+{XP_GAINS.tug_correct} XP si correct</span></div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem",marginBottom:"1rem"}}>
-        {[["a",teamA,"#3d9fff",ansA,setAnsA],["b",teamB,"#ff4d6d",ansB,setAnsB]].map(([team,name,col,val,setVal])=>(
-          <div key={team} style={{background:"rgba(255,255,255,0.04)",borderRadius:12,padding:"1rem",textAlign:"center"}}>
-            <div style={{fontSize:"0.72rem",fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:col,marginBottom:"0.5rem"}}>{name}</div>
-            <input style={{...s.input,textAlign:"center",fontSize:"1rem",borderColor:col+"60",marginBottom:"0.5rem"}} placeholder="Réponse..." value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!result)check(team);}}/>
-            <Btn onClick={()=>{if(!result)check(team);}} color={col} style={{width:"100%"}} sm>Valider ✓</Btn>
+      <div className="grid-2" style={{marginBottom:"1rem"}}>
+        {[["a",teamA,"#0e7490",ansA,setAnsA],["b",teamB,"#c81e3a",ansB,setAnsB]].map(([team,name,col,val,setVal])=>(
+          <div key={team} className="card card-accent tow-answer" style={{"--accent":col}}>
+            <label htmlFor={`reponse-${team}`} className="tow-team-name" style={{display:"block",color:ink(col),marginBottom:"0.5rem"}}>{name}</label>
+            <input id={`reponse-${team}`} className="field" style={{textAlign:"center",marginBottom:"0.5rem"}} placeholder="Réponse..." autoComplete="off" value={val} onChange={e=>setVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!result)check(team);}}/>
+            <Btn onClick={()=>{if(!result)check(team);}} color={col} style={{width:"100%"}} sm disabled={!!result}>Valider ✓</Btn>
           </div>
         ))}
       </div>
       {result&&<>
-        <div style={{textAlign:"center",padding:"0.8rem",borderRadius:10,background:result.winner?"rgba(34,211,160,0.1)":"rgba(107,114,128,0.1)",color:result.winner?"#22d3a0":"#6b7280",fontWeight:700,marginBottom:"0.8rem",fontSize:"1rem"}}>
+        <div className="banner" data-tone={result.winner?"ok":"neutral"} role="status">
           {result.winner?`✅ ${result.winner} — +${XP_GAINS.tug_correct} XP !`:`❌ Incorrect !`} — Réponse : <strong>{result.answer}</strong>
         </div>
         <div style={{textAlign:"center"}}><Btn onClick={nextQ}>{qIdx+1<questions.length?"Question suivante →":"Voir le résultat 🏆"}</Btn></div>
@@ -987,34 +1047,34 @@ function TugOfWar({onAddXP}){
   }
 
   return <div>
-    <div style={{fontSize:"1.4rem",fontWeight:900,textTransform:"uppercase",letterSpacing:1,marginBottom:"0.3rem"}}>🎯 Tug of War</div>
-    <div style={{fontSize:"0.82rem",color:"#6b7280",marginBottom:"0.8rem"}}>Le tir à la corde pédagogique</div>
-    <div style={{background:"rgba(255,209,102,0.12)",border:"1px solid rgba(255,209,102,0.3)",borderRadius:10,padding:"0.6rem 1rem",marginBottom:"1.2rem",fontSize:"0.8rem",color:"#ffd166",fontWeight:600}}>
-      ⭐ +{XP_GAINS.tug_correct} XP par bonne réponse · +{XP_GAINS.tug_win} XP pour la victoire
-    </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1rem",marginBottom:"1.2rem"}}>
-      {[["a","Équipe Bleue","#3d9fff",teamA,setTeamA],["b","Équipe Rouge","#ff4d6d",teamB,setTeamB]].map(([t,placeholder,col,val,setVal])=>(
-        <Card key={t}><div style={{fontSize:"0.9rem",fontWeight:800,textTransform:"uppercase",color:col,marginBottom:"0.6rem"}}>Équipe {t.toUpperCase()}</div><input style={s.input} placeholder={placeholder} value={val} onChange={e=>setVal(e.target.value)}/></Card>
+    <PageHeader icon="🎯" title="Tug of War" subtitle="Le tir à la corde pédagogique"/>
+    <Callout>⭐ +{XP_GAINS.tug_correct} XP par bonne réponse · +{XP_GAINS.tug_win} XP pour la victoire</Callout>
+    <div className="grid-2 stack-xs" style={{marginBottom:"1.2rem"}}>
+      {[["a","Équipe Bleue","#0e7490",teamA,setTeamA],["b","Équipe Rouge","#c81e3a",teamB,setTeamB]].map(([t,placeholder,col,val,setVal])=>(
+        <div key={t} className="card card-accent" style={{"--accent":col}}>
+          <label htmlFor={`equipe-${t}`} className="label" style={{color:ink(col),fontWeight:700,fontSize:"0.8rem"}}>Équipe {t.toUpperCase()}</label>
+          <input id={`equipe-${t}`} className="field" placeholder={placeholder} value={val} onChange={e=>setVal(e.target.value)}/>
+        </div>
       ))}
     </div>
     <Card style={{marginBottom:"1.2rem"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"0.8rem"}}>
-        <SectionTitle>❓ Questions</SectionTitle>
-        <div style={{display:"flex",gap:"0.4rem"}}>
-          {[["seconde","🏛️"],["premiere","📐"],["terminale","🏗️"]].map(([k,icon])=><Btn key={k} onClick={()=>loadFiliere(k)} color={filiere===k?"#ff6b2b":"#1c2030"} textColor={filiere===k?"white":"#6b7280"} sm>{icon} {k.charAt(0).toUpperCase()+k.slice(1)}</Btn>)}
-        </div>
+      <SectionTitle>❓ Questions</SectionTitle>
+      <div className="chip-row" role="group" aria-label="Charger les questions d'une filière" style={{marginBottom:"0.9rem"}}>
+        <span className="hint">Filière :</span>
+        {[["seconde","🏛️"],["premiere","📐"],["terminale","🏗️"]].map(([k,icon])=><Chip key={k} active={filiere===k} onClick={()=>loadFiliere(k)}>{icon} {FILIERES[k]}</Chip>)}
       </div>
       {questions.map((q,i)=>(
-        <div key={i} style={{background:"#0d0f14",border:"1px solid rgba(255,255,255,0.07)",borderRadius:10,padding:"0.8rem",marginBottom:"0.5rem"}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0.5rem"}}>
-            <input style={s.input} placeholder="Question..." value={q.q} onChange={e=>updQ(i,"q",e.target.value)}/>
-            <input style={s.input} placeholder="Bonne réponse..." value={q.a} onChange={e=>updQ(i,"a",e.target.value)}/>
+        <div key={i} className="q-row">
+          <span className="q-num num" aria-hidden="true">{i+1}</span>
+          <div className="grid-2 stack-sm">
+            <input className="field" aria-label={`Question ${i+1}`} placeholder="Question..." value={q.q} onChange={e=>updQ(i,"q",e.target.value)}/>
+            <input className="field" aria-label={`Bonne réponse à la question ${i+1}`} placeholder="Bonne réponse..." value={q.a} onChange={e=>updQ(i,"a",e.target.value)}/>
           </div>
         </div>
       ))}
-      <Btn onClick={addQ} color="#1c2030" textColor="#6b7280" sm>+ Ajouter une question</Btn>
+      <Btn onClick={addQ} variant="secondary" sm>+ Ajouter une question</Btn>
     </Card>
-    <Btn onClick={start} style={{fontSize:"1rem",padding:"0.8rem 2rem"}}>🎯 Lancer le jeu !</Btn>
+    <Btn onClick={start} className="btn-lg">🎯 Lancer le jeu !</Btn>
   </div>;
 }
 
@@ -1030,25 +1090,26 @@ function Championship(){
   ];
   const [tab,setTab]=useState("xp");
   return <div>
-    <div style={{fontSize:"1.4rem",fontWeight:900,textTransform:"uppercase",letterSpacing:1,marginBottom:"0.3rem"}}>🏆 Championnat</div>
-    <div style={{fontSize:"0.82rem",color:"#6b7280",marginBottom:"1.2rem"}}>Classement général</div>
-    <div style={{display:"flex",gap:"0.5rem",marginBottom:"1.2rem"}}>
-      <Btn onClick={()=>setTab("xp")} color={tab==="xp"?"#ffd166":"#1c2030"} textColor={tab==="xp"?"#0d0f14":"#6b7280"} sm>⭐ Classement XP</Btn>
-      <Btn onClick={()=>setTab("kahoot")} color={tab==="kahoot"?"#ff6b2b":"#1c2030"} textColor={tab==="kahoot"?"white":"#6b7280"} sm>🎮 Classement Kahoot</Btn>
+    <PageHeader icon="🏆" title="Championnat" subtitle="Classement général"/>
+    <div className="tabs" role="group" aria-label="Type de classement">
+      <button type="button" className="tab" aria-pressed={tab==="xp"} onClick={()=>setTab("xp")}>⭐ Classement XP</button>
+      <button type="button" className="tab" aria-pressed={tab==="kahoot"} onClick={()=>setTab("kahoot")}>🎮 Classement Kahoot</button>
     </div>
 
     {tab==="xp"&&<>
       <Card style={{marginBottom:"1rem"}}>
         <SectionTitle>⭐ Podium XP</SectionTitle>
-        <div style={{display:"flex",alignItems:"flex-end",justifyContent:"center",gap:"0.5rem",margin:"1rem 0"}}>
+        <div className="podium">
           {[sorted[1],sorted[0],sorted[2]].map((st,i)=>{
             if(!st)return null;
-            const {current}=getLevelInfo(st.xp);
-            return <div key={st.name} style={{textAlign:"center",padding:"0.8rem 1rem",borderRadius:"10px 10px 0 0",background:`${current.color}12`,minHeight:[65,85,55][i],display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end",border:`1px solid ${current.color}30`}}>
-              <div style={{fontSize:"1.5rem"}}>{["🥈","🥇","🥉"][i]}</div>
-              <div style={{fontSize:"0.78rem",fontWeight:700,marginTop:"0.2rem"}}>{st.name}</div>
-              <div style={{fontSize:"0.65rem",color:"#ffd166",fontWeight:700}}>{st.xp} XP</div>
-              <XPBadge xp={st.xp}/>
+            return <div key={st.name} className="podium-col">
+              <div className="podium-who">
+                <div className="podium-medal" aria-hidden="true">{["🥈","🥇","🥉"][i]}</div>
+                <div className="podium-name">{st.name}</div>
+                <div className="podium-xp num">{st.xp} XP</div>
+                <XPBadge xp={st.xp}/>
+              </div>
+              <div className="podium-step num" data-rank={[2,1,3][i]} style={{height:[64,92,44][i]}}>{[2,1,3][i]}</div>
             </div>;
           })}
         </div>
@@ -1057,35 +1118,35 @@ function Championship(){
         <SectionTitle>📋 Classement XP complet</SectionTitle>
         {sorted.map((st,i)=>{
           const {current}=getLevelInfo(st.xp);
-          return <div key={st.name} style={{display:"flex",alignItems:"center",gap:"0.8rem",padding:"0.6rem 0.8rem",borderRadius:10,marginBottom:"0.4rem",background:"rgba(255,255,255,0.02)",border:"1px solid rgba(255,255,255,0.07)"}}>
-            <div style={{width:28,textAlign:"center",fontWeight:900,color:i===0?"#ffd166":i===1?"#94a3b8":i===2?"#cd7f32":"#6b7280"}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":i+1}</div>
-            <div style={{width:36,height:36,borderRadius:10,background:"#ff6b2b",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,color:"white",fontSize:"0.85rem",flexShrink:0}}>{st.name[0]}</div>
-            <div style={{flex:1}}><div style={{fontWeight:700,fontSize:"0.88rem"}}>{st.name}</div><XPBadge xp={st.xp}/></div>
-            <div style={{textAlign:"right"}}><div style={{fontWeight:900,color:"#ffd166",fontFamily:"monospace"}}>{st.xp}</div><div style={{fontSize:"0.65rem",color:"#6b7280"}}>XP</div></div>
+          return <div key={st.name} className="rank-row">
+            <div className="rank-pos">{i===0?"🥇":i===1?"🥈":i===2?"🥉":i+1}</div>
+            <Avatar name={st.name}/>
+            <div className="rank-who"><div className="rank-name">{st.name}</div><XPBadge xp={st.xp}/></div>
+            <div className="rank-xp num">{st.xp}<small>XP</small></div>
           </div>;
         })}
       </Card>
     </>}
 
     {tab==="kahoot"&&<>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"1rem",marginBottom:"1.5rem"}}>
-        {[["4/10","#ffd166","Kahoots joués"],["18","#22d3a0","Participants"],["6","#a78bfa","Kahoots restants"]].map(([v,col,label])=>(
-          <Card key={label} style={{textAlign:"center",padding:"1.2rem"}}><div style={{fontSize:"2rem",fontWeight:900,color:col,lineHeight:1}}>{v}</div><div style={{fontSize:"0.68rem",color:"#6b7280",textTransform:"uppercase",letterSpacing:1,marginTop:"0.3rem"}}>{label}</div></Card>
+      <div className="stats">
+        {[["4/10","#a16207","Kahoots joués"],["18","#15803d","Participants"],["6","#6d28d9","Kahoots restants"]].map(([v,col,label])=>(
+          <Card key={label} className="stat"><div className="stat-val" style={{color:col}}>{v}</div><div className="overline stat-label">{label}</div></Card>
         ))}
       </div>
       <Card>
         <SectionTitle>📋 Classement Kahoot</SectionTitle>
-        <div style={{overflowX:"auto"}}>
-          <table style={{width:"100%",borderCollapse:"collapse",fontSize:"0.82rem"}}>
-            <thead><tr>{["#","Élève","Classe","K1","K2","K3","K4","Total"].map(h=><th key={h} style={{background:"#0d0f14",padding:"0.6rem 0.8rem",textAlign:"left",fontSize:"0.68rem",fontWeight:700,letterSpacing:1,textTransform:"uppercase",color:"#6b7280",borderBottom:"1px solid rgba(255,255,255,0.07)"}}>{h}</th>)}</tr></thead>
+        <div className="table-wrap" tabIndex={0} role="region" aria-label="Tableau du classement Kahoot">
+          <table className="table">
+            <thead><tr>{["#","Élève","Classe","K1","K2","K3","K4","Total"].map(h=><th key={h} scope="col" className={/^K\d$|^Total$/.test(h)?"r":undefined}>{h}</th>)}</tr></thead>
             <tbody>
               {champ.map(st=>(
-                <tr key={st.name} style={{borderBottom:"1px solid rgba(255,255,255,0.07)"}}>
-                  <td style={{padding:"0.6rem 0.8rem",color:"#ffd166",fontWeight:700}}>{st.rank===1?"🥇":st.rank===2?"🥈":st.rank===3?"🥉":st.rank}</td>
-                  <td style={{padding:"0.6rem 0.8rem",fontWeight:600}}>{st.name}</td>
-                  <td style={{padding:"0.6rem 0.8rem"}}><Badge type={st.classe}>{st.classe==="seconde"?"🏛️ Seconde":st.classe==="premiere"?"📐 1ère TBAA":"🏗️ Term TBAA"}</Badge></td>
-                  {st.k.map((k,i)=><td key={i} style={{padding:"0.6rem 0.8rem",fontFamily:"monospace",fontSize:"0.8rem"}}>{k}</td>)}
-                  <td style={{padding:"0.6rem 0.8rem",fontFamily:"monospace",fontWeight:700,color:"#ffd166"}}>{st.total}</td>
+                <tr key={st.name}>
+                  <td className="num" style={{color:"#854d0e",fontWeight:700}}>{st.rank===1?"🥇":st.rank===2?"🥈":st.rank===3?"🥉":st.rank}</td>
+                  <td className="cell-name">{st.name}</td>
+                  <td><Badge type={st.classe}>{st.classe==="seconde"?"🏛️ Seconde":st.classe==="premiere"?"📐 1ère TBAA":"🏗️ Term TBAA"}</Badge></td>
+                  {st.k.map((k,i)=><td key={i} className="r num">{k}</td>)}
+                  <td className="r num" style={{fontWeight:700,color:"#854d0e"}}>{st.total}</td>
                 </tr>
               ))}
             </tbody>
@@ -1099,22 +1160,22 @@ function Championship(){
 // ── MOODLE ────────────────────────────────────────────────────
 function Moodle(){
   return <div>
-    <div style={{fontSize:"1.4rem",fontWeight:900,textTransform:"uppercase",letterSpacing:1,marginBottom:"1.5rem"}}>🎓 Éléa — Moodle</div>
+    <PageHeader icon="🎓" title="Éléa — Moodle"/>
     {[
-      {color:"#3d9fff",title:"🎓 Qu'est-ce qu'Éléa ?",content:"Éléa est la plateforme Moodle officielle de l'Éducation Nationale. En tant qu'enseignant à l'académie de Versailles, vous avez droit à un espace gratuit avec suivi des élèves, dépôt de fichiers, quiz et forums."},
-      {color:"#22d3a0",title:"✅ Comment obtenir votre espace",steps:["Connectez-vous sur elea.ac-versailles.fr avec vos identifiants académiques","Si pas d'accès → contactez votre référent numérique ou chef d'établissement","Formation gratuite disponible via la DANE de Versailles","Une fois créé → transférez toutes vos ressources depuis ce site"]},
-      {color:"#ffd166",title:"💡 En attendant Moodle",content:"Ce site fonctionne déjà ! Partagez-le à vos élèves via un simple lien. Accessible depuis n'importe quel téléphone ou ordinateur, sans installation."},
+      {color:"#0e7490",title:"🎓 Qu'est-ce qu'Éléa ?",content:"Éléa est la plateforme Moodle officielle de l'Éducation Nationale. En tant qu'enseignant à l'académie de Versailles, vous avez droit à un espace gratuit avec suivi des élèves, dépôt de fichiers, quiz et forums."},
+      {color:"#15803d",title:"✅ Comment obtenir votre espace",steps:["Connectez-vous sur elea.ac-versailles.fr avec vos identifiants académiques","Si pas d'accès → contactez votre référent numérique ou chef d'établissement","Formation gratuite disponible via la DANE de Versailles","Une fois créé → transférez toutes vos ressources depuis ce site"]},
+      {color:"#a16207",title:"💡 En attendant Moodle",content:"Ce site fonctionne déjà ! Partagez-le à vos élèves via un simple lien. Accessible depuis n'importe quel téléphone ou ordinateur, sans installation."},
     ].map(({color,title,content,steps})=>(
-      <div key={title} style={{background:`${color}10`,border:`1px solid ${color}30`,borderRadius:12,padding:"1.5rem",marginBottom:"1rem"}}>
-        <div style={{color,fontWeight:800,textTransform:"uppercase",letterSpacing:1,marginBottom:"0.8rem"}}>{title}</div>
-        {content&&<p style={{fontSize:"0.85rem",color:"#6b7280",lineHeight:1.6}}>{content}</p>}
-        {steps&&<div style={{display:"flex",flexDirection:"column",gap:"0.6rem"}}>{steps.map((step,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"flex-start",gap:"0.8rem",fontSize:"0.83rem"}}>
-            <div style={{width:24,height:24,borderRadius:"50%",background:`${color}20`,color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"0.75rem",fontWeight:700,flexShrink:0}}>{i+1}</div>
-            <span style={{color:"#e8eaf0",lineHeight:1.5}}>{step}</span>
-          </div>
-        ))}</div>}
-      </div>
+      <section key={title} className="note" style={{"--accent":color}}>
+        <h2 className="note-title">{title}</h2>
+        {content&&<p className="note-text">{content}</p>}
+        {steps&&<ol className="steps">{steps.map((step,i)=>(
+          <li key={i}>
+            <span className="step-num" style={tone(color)} aria-hidden="true">{i+1}</span>
+            <span>{step}</span>
+          </li>
+        ))}</ol>}
+      </section>
     ))}
   </div>;
 }
@@ -1125,6 +1186,26 @@ export default function App(){
   const [active,setActive]=useState("dashboard");
   const [toasts,setToasts]=useState([]);
   const [levelUp,setLevelUp]=useState(null);
+  const [menuOpen,setMenuOpen]=useState(false);
+
+  // Menu repliable (tablette / téléphone) : fermeture avec Échap…
+  useEffect(()=>{
+    if(!menuOpen) return;
+    const onKey=e=>{if(e.key==="Escape")setMenuOpen(false);};
+    window.addEventListener("keydown",onKey);
+    return()=>window.removeEventListener("keydown",onKey);
+  },[menuOpen]);
+
+  // … et dès que la fenêtre repasse en largeur « ordinateur » (la barre latérale redevient fixe)
+  useEffect(()=>{
+    const desktop=window.matchMedia("(min-width: 900px)");
+    const onChange=()=>{if(desktop.matches)setMenuOpen(false);};
+    desktop.addEventListener("change",onChange);
+    return()=>desktop.removeEventListener("change",onChange);
+  },[]);
+
+  // Changement de page : on repart du haut
+  useEffect(()=>{window.scrollTo(0,0);},[active]);
 
   // Sync XP to Supabase
   const syncXP=async(userId,newXP)=>{
@@ -1169,9 +1250,11 @@ export default function App(){
     moodle:<Moodle/>
   };
 
-  return <div style={{display:"flex",flexDirection:"column",minHeight:"100vh",background:"#0d0f14",color:"#e8eaf0",fontFamily:"'Segoe UI','Helvetica Neue',Arial,sans-serif"}}>
+  return <div className="app">
+    <a className="skip-link" href="#contenu">Aller au contenu</a>
+
     {/* Toasts XP */}
-    <div style={{position:"fixed",top:80,right:20,zIndex:9999,display:"flex",flexDirection:"column",gap:"0.5rem"}}>
+    <div className="toasts" role="status" aria-live="polite">
       {toasts.map(t=><XPToast key={t.id} gain={t.gain} label={t.label} onDone={()=>removeToast(t.id)}/>)}
     </div>
 
@@ -1179,34 +1262,41 @@ export default function App(){
     {levelUp&&<LevelUpModal level={levelUp} onClose={()=>setLevelUp(null)}/>}
 
     {/* Header */}
-    <div style={{background:"#151820",borderBottom:"1px solid rgba(255,255,255,0.07)",padding:"0 1.5rem",height:60,display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:100}}>
-      <div style={{display:"flex",alignItems:"center",gap:"0.8rem"}}>
-        <div style={{width:36,height:36,background:"#ff6b2b",borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:"1.1rem"}}>🏗️</div>
-        <div style={{fontWeight:800,fontSize:"1rem",letterSpacing:"0.5px"}}>ProLycée</div>
+    <header className="app-header">
+      <div className="header-left">
+        <button type="button" className="menu-toggle" aria-expanded={menuOpen} aria-controls="menu-principal" aria-label={menuOpen?"Fermer le menu":"Ouvrir le menu"} onClick={()=>setMenuOpen(o=>!o)}>
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false"><path d={menuOpen?"M4 4l10 10M14 4L4 14":"M2 4.5h14M2 9h14M2 13.5h14"} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+          <span className="menu-toggle-label">Menu</span>
+        </button>
+        <div className="brand">
+          <Logo size={36}/>
+          <div className="brand-name">Pro<span>Lycée</span></div>
+          <div className="overline brand-tagline">Plateforme pédagogique</div>
+        </div>
       </div>
-      <div style={{display:"flex",alignItems:"center",gap:"0.8rem"}}>
+      <div className="header-right">
         {user.role==="eleve"&&(
-          <div style={{display:"flex",alignItems:"center",gap:"0.6rem",background:"rgba(255,209,102,0.12)",border:"1px solid rgba(255,209,102,0.3)",borderRadius:20,padding:"0.3rem 0.8rem"}}>
-            <span style={{fontSize:"0.85rem"}}>⭐</span>
-            <span style={{fontFamily:"monospace",fontWeight:700,color:"#ffd166",fontSize:"0.9rem"}}>{user.xp||0}</span>
-            <span style={{fontSize:"0.65rem",color:"#6b7280"}}>XP</span>
-            <span style={{color:getLevelInfo(user.xp||0).current.color,fontSize:"0.85rem"}}>{getLevelInfo(user.xp||0).current.icon}</span>
+          <div className="xp-pill" title="Mes points d'expérience">
+            <span aria-hidden="true">⭐</span>
+            <b className="num">{user.xp||0}</b>
+            <small>XP</small>
+            <span className="xp-pill-level" aria-hidden="true">{getLevelInfo(user.xp||0).current.icon}</span>
           </div>
         )}
-        <div style={{background:"#1c2030",border:"1px solid rgba(255,255,255,0.07)",borderRadius:20,padding:"0.3rem 0.8rem",fontSize:"0.8rem",fontWeight:600}}>
+        <div className="user-pill" title={user.name}>
           {user.role==="prof"?"👨‍🏫":"👨‍🎓"} {user.name}
         </div>
-        <button onClick={handleLogout} style={{background:"none",border:"1px solid rgba(255,255,255,0.07)",color:"#6b7280",padding:"0.3rem 0.7rem",borderRadius:8,fontSize:"0.75rem",fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Déconnexion</button>
+        <button type="button" onClick={handleLogout} className="btn btn-secondary btn-sm header-logout">Déconnexion</button>
       </div>
-    </div>
+    </header>
 
-    <div style={{display:"flex",flex:1,overflow:"hidden"}}>
-      <Sidebar active={active} setActive={setActive} user={user}/>
-      <div style={{flex:1,overflowY:"auto",padding:"1.5rem"}}>
-        <div style={{maxWidth:900,margin:"0 auto"}}>
+    <div className="app-body">
+      <Sidebar active={active} setActive={setActive} user={user} open={menuOpen} onClose={()=>setMenuOpen(false)} onLogout={()=>{setMenuOpen(false);handleLogout();}}/>
+      <main id="contenu" className="app-main" tabIndex={-1} inert={menuOpen}>
+        <div className="app-container">
           {panels[active]||panels.dashboard}
         </div>
-      </div>
+      </main>
     </div>
   </div>;
 }
