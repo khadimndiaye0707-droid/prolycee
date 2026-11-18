@@ -123,15 +123,6 @@ export function LiveHost({ quiz, onExit, initialMode }) {
     catch (e) { setError(errText(e)); refresh(); }
   };
 
-  const startTug = async () => {
-    setBusy(true); setError("");
-    try {
-      await rpc("host_tug_start", { p_secret: secret, p_game: gid, p_public: quiz.questions.map(publicQuestion), p_specs: quiz.questions.map(answerSpec) });
-      setGame((g) => ({ ...g, status: "question", q_index: 0 }));
-    } catch (e) { setError(errText(e)); }
-    setBusy(false);
-  };
-
   const askQuestion = async (i) => {
     const qq = quiz.questions[i];
     setBusy(true); setError("");
@@ -170,7 +161,7 @@ export function LiveHost({ quiz, onExit, initialMode }) {
 
   // Compte à rebours ; correction automatique à 0
   useEffect(() => {
-    if (status !== "question" || game?.mode === "tug") return;
+    if (status !== "question") return;
     const iv = setInterval(() => {
       setTimer((t) => {
         if (t <= 1) { clearInterval(iv); setTimeout(() => revealRef.current && revealRef.current(), 0); return 0; }
@@ -178,29 +169,29 @@ export function LiveHost({ quiz, onExit, initialMode }) {
       });
     }, 1000);
     return () => clearInterval(iv);
-  }, [status, qIdx, game?.mode]);
+  }, [status, qIdx]);
 
   const answersQ = answers.filter((a) => a.q_index === qIdx);
   const unassigned = players.filter((p) => !p.team).length;
   const tug = tugState(players, answers, tugMax(quiz.questions.length));
-  const tugDone = players.length > 0 ? players.filter((p) => answers.filter((a) => a.player_id === p.id).length >= quiz.questions.length).length : 0;
   const tugReady = players.length > 0 && unassigned === 0 && tug.size.A > 0 && tug.size.B > 0;
 
   // Correction anticipée dès que tout le monde a répondu
   useEffect(() => {
-    if (status === "question" && game?.mode !== "tug" && players.length > 0 && answersQ.length >= players.length) {
+    if (status === "question" && players.length > 0 && answersQ.length >= players.length) {
       const t = setTimeout(() => revealRef.current && revealRef.current(), 700);
       return () => clearTimeout(t);
     }
-  }, [status, players.length, answersQ.length, game?.mode]);
+  }, [status, players.length, answersQ.length]);
 
-  // Tug of War : la partie s'arrête quand la corde est tirée au bout ou quand tous ont terminé
-  useEffect(() => {
-    if (game?.mode === "tug" && status === "question" && (tug.won || (players.length > 0 && tugDone >= players.length))) {
-      const t = setTimeout(() => finish(), 1200);
-      return () => clearTimeout(t);
-    }
-  }, [game?.mode, status, tug.won, tugDone, players.length]);   // eslint-disable-line react-hooks/exhaustive-deps
+  const toggleFs = () => { const el = document.getElementById("nb-monitor"); if (document.fullscreenElement) document.exitFullscreen(); else el?.requestFullscreen?.(); };
+  const tugTop = game?.mode === "tug" ? <>
+    <div className="nb-topbar">
+      <div className="nb-join"><span>REJOINS&nbsp;:</span><b className="num">{game.pin}</b>{qr && <img src={qr} alt="QR code pour rejoindre" width="56" height="56" />}</div>
+      <div className="nb-actions"><button type="button" className="nb-btn" onClick={toggleFs}>⛶ Plein écran</button></div>
+    </div>
+    <Rope pos={tug.pos} max={tug.max} sizes={tug.size} big />
+  </> : null;
 
   const header = (title) => (
     <header className="page-head" data-size="sm">
@@ -276,48 +267,15 @@ export function LiveHost({ quiz, onExit, initialMode }) {
         </div>}
       </div>
       {error && <div className="alert" role="alert">{error}</div>}
-      <button type="button" className="btn btn-primary btn-lg" disabled={busy || players.length === 0 || (game.mode === "tug" && !tugReady)} onClick={() => (game.mode === "tug" ? startTug() : askQuestion(0))}>{game.mode === "tug" && !tugReady ? "Place chaque élève dans une équipe" : "▶ Lancer la 1ère question"}</button>
-    </div>;
-  }
-
-  // ── Tug of War en cours : MONITEUR pour le vidéoprojecteur ──
-  if (status === "question" && game.mode === "tug") {
-    const nbQ = quiz.questions.length;
-    const teamOf = Object.fromEntries(players.map((p) => [p.id, p]));
-    const ok = (t) => answers.filter((a) => a.correct && teamOf[a.player_id]?.team === t).length;
-    const feed = answers.filter((a) => a.correct && teamOf[a.player_id]?.team)
-      .sort((x, y) => String(y.created_at).localeCompare(String(x.created_at))).slice(0, 6);
-    const toggleFs = () => { const el = document.getElementById("nb-monitor"); if (document.fullscreenElement) document.exitFullscreen(); else el?.requestFullscreen?.(); };
-    return <div id="nb-monitor" className="nb-monitor">
-      <div className="nb-topbar">
-        <div className="nb-join"><span>REJOINS&nbsp;:</span><b className="num">{game.pin}</b>{qr && <img src={qr} alt="QR code pour rejoindre" width="64" height="64" />}</div>
-        <div className="nb-title">{game.titre}</div>
-        <div className="nb-actions">
-          <button type="button" className="nb-btn" onClick={toggleFs}>⛶ Plein écran</button>
-          <button type="button" className="nb-btn nb-btn-red" onClick={finish}>🏁 Terminer</button>
-        </div>
-      </div>
-      <Rope pos={tug.pos} max={tug.max} sizes={tug.size} big />
-      <div className="nb-scores">
-        <div className="nb-score" style={{ background: TEAMS.A.color }}><span>{TEAMS.A.name}</span><b className="num">{ok("A")}</b></div>
-        <div className="nb-feed" aria-live="polite">
-          <div className="nb-feed-title">⚡ DERNIERS POINTS</div>
-          {feed.length === 0 && <div className="nb-feed-empty">En attente de la 1ère bonne réponse…</div>}
-          {feed.map((a, i) => <div key={`${a.player_id}-${a.q_index}`} className="nb-feed-row" style={{ borderLeftColor: TEAMS[teamOf[a.player_id].team].color, opacity: 1 - i * 0.12 }}>
-            {TEAMS[teamOf[a.player_id].team].dot} {teamOf[a.player_id].nom}</div>)}
-        </div>
-        <div className="nb-score" style={{ background: TEAMS.B.color }}><span>{TEAMS[ "B" ].name}</span><b className="num">{ok("B")}</b></div>
-      </div>
-      <p className="nb-note">La corde s'arrête à ±{tug.max} bonnes réponses par élève · {nbQ} questions · {tugDone}/{players.length} élèves ont fini</p>
-      {error && <div className="alert" role="alert">{error}</div>}
+      <button type="button" className="btn btn-primary btn-lg" disabled={busy || players.length === 0 || (game.mode === "tug" && !tugReady)} onClick={() => askQuestion(0)}>{game.mode === "tug" && !tugReady ? "Place chaque élève dans une équipe" : "▶ Lancer la 1ère question"}</button>
     </div>;
   }
 
   // ── Question en cours ──
   if (status === "question" && q) {
     const timerColor = timer <= 5 ? "#c81e3a" : timer <= 10 ? "#a16207" : "#8c2f39";
-    return <div>
-      {header(game.titre)}
+    return <div id={game.mode === "tug" ? "nb-monitor" : undefined} className={game.mode === "tug" ? "nb-monitor nb-flow" : undefined}>
+      {game.mode === "tug" ? tugTop : header(game.titre)}
       <div className="card card-accent kh-question">
         <div className="page-meta num">Question {qIdx + 1}/{quiz.questions.length}</div>
         <h2 className="kh-q">{q.q}</h2>
@@ -346,9 +304,10 @@ export function LiveHost({ quiz, onExit, initialMode }) {
     const nbOk = answersQ.filter((a) => a.correct).length;
     const spec = answerSpec(q);
     const dots = qt === "zone" ? answersQ.filter((a) => a.x != null).map((a) => ({ x: +a.x, y: +a.y, ok: a.correct })) : [];
-    const last = qIdx + 1 >= quiz.questions.length;
-    return <div>
-      {header(game.titre)}
+    const last = qIdx + 1 >= quiz.questions.length || (game.mode === "tug" && tug.won);
+    const teamOk = (t) => answersQ.filter((a) => a.correct && players.find((p) => p.id === a.player_id)?.team === t).length;
+    return <div id={game.mode === "tug" ? "nb-monitor" : undefined} className={game.mode === "tug" ? "nb-monitor nb-flow" : undefined}>
+      {game.mode === "tug" ? tugTop : header(game.titre)}
       <div className="card kh-question"><h2 className="kh-q">{q.q}</h2></div>
       {q.media && <Media media={q.media} maxVh={56} rect={qt === "zone" ? q.zone : null} dots={dots} />}
       {qt === "qcm" && <div className="kh-grid">
@@ -371,6 +330,12 @@ export function LiveHost({ quiz, onExit, initialMode }) {
               <span className="score-pos num"><Medal i={i} /></span><span className="score-name">{t.nom}</span><span className="score-pts num">{t.total} pts</span>
             </div>
           ))}
+        </div>
+      ) : game.mode === "tug" ? (
+        <div className="nb-scores" style={{ margin: "1rem 0" }}>
+          <div className="nb-score" style={{ background: TEAMS.A.color }}><span>{TEAMS.A.name}</span><b className="num">{teamOk("A")}<small>/{tug.size.A}</small></b></div>
+          <div className="nb-feed"><div className="nb-feed-title">⚡ CETTE QUESTION</div><div className="nb-feed-row" style={{ borderLeftColor: "#111" }}>{tug.won ? "La corde est au bout !" : "La corde se déplace…"}</div></div>
+          <div className="nb-score" style={{ background: TEAMS.B.color }}><span>{TEAMS.B.name}</span><b className="num">{teamOk("B")}<small>/{tug.size.B}</small></b></div>
         </div>
       ) : (
         <p className="banner" data-tone="neutral" style={{ margin: "1rem 0" }}>📖 Révision : {nbOk} élève{nbOk > 1 ? "s" : ""} sur {answersQ.length} {nbOk > 1 ? "ont" : "a"} trouvé la bonne réponse.</p>
@@ -427,9 +392,6 @@ export function LiveJoin() {
   const lastQ = useRef(-2);
   const [team, setTeam] = useState(null);          // Tug of War : mon équipe
   const [tugView, setTugView] = useState(null);    // Tug of War : état de la corde
-  const [myN, setMyN] = useState(0);               // Tug of War : nombre de questions déjà traitées
-  const [tugRes, setTugRes] = useState(null);      // Tug of War : retour sur ma dernière réponse
-  const tugSent = useRef(-1);
 
   const gid = me?.game_id;
 
@@ -445,7 +407,7 @@ export function LiveJoin() {
     setBusy(false);
   };
 
-  const leave = () => { sessionStorage.removeItem("prolycee_live_me"); setMe(null); setGame(null); setChosen(null); setResult(null); setRank(null); lastQ.current = -2; setTeam(null); setTugView(null); setMyN(0); setTugRes(null); tugSent.current = -1; };
+  const leave = () => { sessionStorage.removeItem("prolycee_live_me"); setMe(null); setGame(null); setChosen(null); setResult(null); setRank(null); lastQ.current = -2; setTeam(null); setTugView(null); };
 
   const applyGame = useCallback((g) => {
     setGame((prev) => (prev && JSON.stringify(prev) === JSON.stringify(g) ? prev : g));
@@ -466,7 +428,6 @@ export function LiveJoin() {
           const mine = pl.data.find((x) => x.id === me.player_id);
           setTeam(mine?.team || null);
           setTugView(tugState(pl.data, an.data, tugMax(data.total)));
-          setMyN((n) => Math.max(n, an.data.filter((a) => a.player_id === me.player_id).length));
         }
       }
     };
@@ -521,33 +482,6 @@ export function LiveJoin() {
     if (e) setError(errText(e));
   };
 
-  // Tug of War : réponse à ma question courante (la correction est faite côté serveur)
-  const tugAnswer = async (payload) => {
-    if (tugSent.current === myN) return;
-    tugSent.current = myN;
-    const idx = myN;
-    const ms = now() - shownAt.current;
-    const { data, error: e } = await supabase.rpc("submit_tug_answer", {
-      p_player: me.player_id, p_q: idx, p_choice: payload.choice ?? null, p_ms: ms,
-      p_x: payload.x ?? null, p_y: payload.y ?? null, p_value: payload.value ?? null,
-    });
-    if (e) { setError(errText(e)); tugSent.current = -1; return; }
-    if (data) setTugRes({ idx, payload, correct: data.correct, spec: data.spec });
-    else setMyN((n) => n + 1);
-  };
-  const tugNext = () => { setTugRes(null); setMyN((n) => n + 1); };
-
-  // Chrono personnel de la question courante (Tug of War)
-  useEffect(() => {
-    if (game?.mode !== "tug" || game.status !== "question" || tugRes) return;
-    shownAt.current = now();
-    const t = game.questions?.[myN]?.time || 30;
-    setTimer(t);   // eslint-disable-line react-hooks/set-state-in-effect
-    const iv = setInterval(() => setTimer((x) => Math.max(0, x - 1)), 1000);
-    const to = setTimeout(() => tugAnswer({}), t * 1000 + 300);
-    return () => { clearInterval(iv); clearTimeout(to); };
-  }, [game?.mode, game?.status, myN, tugRes]);   // eslint-disable-line react-hooks/exhaustive-deps
-
   const competition = (game?.mode || me?.mode) === "competition";
   const isTug = (game?.mode || me?.mode) === "tug";
 
@@ -576,26 +510,6 @@ export function LiveJoin() {
       {team ? <p className="banner" data-tone="ok" style={{ borderColor: TEAMS[team].color }}>Tu es dans l'<b style={{ color: TEAMS[team].color }}>{TEAMS[team].dot} {TEAMS[team].name}</b></p>
         : <p className="hint">Le prof va te placer dans une équipe…</p>}
       <p className="hint">Regarde l'écran : la partie va bientôt commencer.</p></div>;
-  } else if (isTug && game.status === "question") {
-    const qs = game.questions || [];
-    const qq = qs[myN];
-    const timerColor = timer <= 5 ? "#c81e3a" : timer <= 10 ? "#a16207" : "#8c2f39";
-    body = !team ? <p className="live-wait" role="status">⏳ Le prof te place dans une équipe…</p>
-      : <div>
-        <p className="banner" data-tone="neutral" style={{ borderColor: TEAMS[team].color }}>{TEAMS[team].dot} {TEAMS[team].name}</p>
-        {tugView && <Rope pos={tugView.pos} max={tugView.max} sizes={tugView.size} />}
-        {!qq ? <div className="live-center" role="status"><div className="result-emoji" aria-hidden="true">🏁</div><p><b>Tu as terminé !</b></p><p className="hint">Regarde la corde, ton équipe compte sur les autres.</p></div>
-          : tugRes ? <div>
-            <div className="live-center" role="status">{tugRes.correct ? <><div className="result-emoji" aria-hidden="true">💪</div><h2 className="page-title">Tu tires la corde !</h2></> : <><div className="result-emoji" aria-hidden="true">😅</div><h2 className="page-title">Raté…</h2></>}</div>
-            <div style={{ textAlign: "left" }}><QuestionView key={`t${myN}`} q={qq} locked reveal={{ spec: tugRes.spec, mine: { ...tugRes.payload, correct: tugRes.correct } }} /></div>
-            <button type="button" className="btn btn-primary btn-lg btn-block" style={{ marginTop: "0.8rem" }} onClick={tugNext}>{myN + 1 >= qs.length ? "Terminer" : "Question suivante →"}</button>
-          </div> : <div>
-            <div className="live-qhead"><span className="page-meta num">Question {myN + 1}/{qs.length}</span><span className="kh-timer-sm num" style={{ color: timerColor }}>{timer}s</span></div>
-            <h2 className="kh-q live-q">{qq.q}</h2>
-            <QuestionView key={`q${myN}`} q={qq} onAnswer={tugAnswer} />
-          </div>}
-        {error && <div className="alert" role="alert">{error}</div>}
-      </div>;
   } else if (isTug && game.status === "finished") {
     const win = tugView?.leader;
     body = <div className="live-center" role="status"><div className="result-emoji" aria-hidden="true">🏁</div><h2 className="page-title">Partie terminée !</h2>
@@ -605,6 +519,8 @@ export function LiveJoin() {
       <button type="button" className="btn btn-primary" onClick={leave}>Quitter</button></div>;
   } else if (game.status === "lobby") {
     body = <div className="live-center"><div className="result-emoji" aria-hidden="true">🙌</div><h2 className="page-title">C'est bon, {me.nom} !</h2><p className="hint">Regarde l'écran : la partie va bientôt commencer.</p></div>;
+  } else if (isTug && game.status === "question" && !team) {
+    body = <p className="live-wait" role="status">⏳ Le prof te place dans une équipe…</p>;
   } else if (game.status === "question") {
     const qq = game.question;
     const timerColor = timer <= 5 ? "#c81e3a" : timer <= 10 ? "#a16207" : "#8c2f39";
@@ -625,6 +541,7 @@ export function LiveJoin() {
           : <><div className="result-emoji" aria-hidden="true">😅</div><h2 className="page-title">Raté…</h2></>}
       {result && !result.none && game.question && <div style={{ textAlign: "left" }}><QuestionView key={`r${game.q_index}`} q={{ ...game.question, answers: game.question.answers }} locked reveal={{ spec: game.reveal || { type: "qcm", correct: game.correct }, mine: result }} /></div>}
       {result?.none && game.question && <div style={{ textAlign: "left" }}><QuestionView key={`r${game.q_index}`} q={game.question} locked reveal={{ spec: game.reveal || { type: "qcm", correct: game.correct }, mine: null }} /></div>}
+      {isTug && tugView && <Rope pos={tugView.pos} max={tugView.max} sizes={tugView.size} />}
       {competition && rank && <p className="banner" data-tone="neutral">Tu es <b>{rank.pos}{rank.pos === 1 ? "er" : "e"}</b> sur {rank.nb} · {rank.total} pts</p>}
     </div>;
   } else {
@@ -638,7 +555,10 @@ export function LiveJoin() {
 
   return <div className="live-wrap">
     <div className="live-brand"><span className="brand-name">Pro<span>Lycée</span></span>{me && game?.status !== "finished" && <button type="button" className="link-btn" onClick={leave}>Quitter</button>}</div>
-    <main className="card live-card">{body}</main>
+    <main className="card live-card">
+      {isTug && team && game?.status !== "finished" && <p className="banner" data-tone="neutral" style={{ borderColor: TEAMS[team].color, marginTop: 0 }}>{TEAMS[team].dot} {TEAMS[team].name}</p>}
+      {body}
+    </main>
   </div>;
 }
 
