@@ -3,6 +3,7 @@
 // et LiveChampionship (classement cumulé des compétitions).
 import { useState, useEffect, useRef, useCallback } from "react";
 import QRCode from "qrcode";
+import { TEAMS, Rope, Confetti } from "./TugArena";
 import { supabase } from "./supabase";
 import { QuestionView, Media } from "./QuizParts";
 import { answerSpec, publicQuestion } from "./quizLogic";
@@ -16,7 +17,6 @@ const MODES = {
   revision: { icon: "📖", label: "Révision", sub: "Sans classement, sans pression, pas de points de championnat" },
   tug: { icon: "🪢", label: "Tug of War", sub: "Deux équipes : chaque bonne réponse tire la corde de ton côté" },
 };
-const TEAMS = { A: { name: "Équipe Bleue", color: "#0e7490", dot: "🔵" }, B: { name: "Équipe Rouge", color: "#c81e3a", dot: "🔴" } };
 const tugMax = (n) => Math.max(3, Math.round((n || 10) * 0.4));   // écart de bonnes réponses (par élève) qui fait gagner
 
 // Position de la corde : bonnes réponses de l'équipe A (par élève) moins celles de l'équipe B
@@ -36,14 +36,6 @@ function tugState(players, answers, max) {
   return { raw, max, pos: Math.max(-max, Math.min(max, raw)), size, won: Math.abs(raw) >= max, leader: raw > 0 ? "A" : raw < 0 ? "B" : null };
 }
 
-function Rope({ pos, max }) {
-  const pct = 50 + (pos / max) * 50;
-  return <div className="tug-rope" role="img" aria-label={pos === 0 ? "Corde au centre" : `Corde du côté de l'${pos > 0 ? TEAMS.A.name : TEAMS.B.name}`}>
-    <span className="tug-end" style={{ color: TEAMS.A.color }}>{TEAMS.A.dot} {TEAMS.A.name}</span>
-    <div className="tug-line"><div className="tug-mid" /><div className="tug-knot" style={{ left: `${pct}%` }}>🪢</div></div>
-    <span className="tug-end" style={{ color: TEAMS.B.color }}>{TEAMS.B.name} {TEAMS.B.dot}</span>
-  </div>;
-}
 
 const now = () => Date.now();
 const errText = (e) => (e && e.message ? e.message : "Erreur de connexion");
@@ -53,9 +45,9 @@ function Medal({ i }) { return <>{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 
 // ════════════════════════════════════════════════════════════════
 //  PROF — pilote une partie
 // ════════════════════════════════════════════════════════════════
-export function LiveHost({ quiz, onExit }) {
+export function LiveHost({ quiz, onExit, initialMode }) {
   const [secret, saveSecret] = useSecret();
-  const [mode, setMode] = useState("competition");
+  const [mode, setMode] = useState(initialMode || "competition");
   const [classe, setClasse] = useState(quiz.filiere || "terminale");
   const [game, setGame] = useState(null);
   const [players, setPlayers] = useState([]);
@@ -86,7 +78,7 @@ export function LiveHost({ quiz, onExit }) {
     if (!gid) return;
     const [p, a, t] = await Promise.all([
       supabase.from("live_players").select("id,nom,roster_id,team").eq("game_id", gid).order("created_at"),
-      supabase.from("live_answers").select("player_id,q_index,choice,correct,points,x,y,value").eq("game_id", gid),
+      supabase.from("live_answers").select("player_id,q_index,choice,correct,points,x,y,value,created_at").eq("game_id", gid),
       supabase.from("live_totals").select("*").eq("game_id", gid).order("total", { ascending: false }),
     ]);
     if (p.data) setPlayers(p.data);
@@ -288,28 +280,36 @@ export function LiveHost({ quiz, onExit }) {
     </div>;
   }
 
-  // ── Tug of War en cours (chaque élève avance à son rythme) ──
+  // ── Tug of War en cours : MONITEUR pour le vidéoprojecteur ──
   if (status === "question" && game.mode === "tug") {
     const nbQ = quiz.questions.length;
-    const teamOk = (t) => answers.filter((a) => a.correct && players.find((p) => p.id === a.player_id)?.team === t).length;
-    return <div>
-      {header(game.titre)}
-      <div className="card" style={{ margin: "1rem 0" }}>
-        <Rope pos={tug.pos} max={tug.max} />
-        <p className="hint" style={{ textAlign: "center" }}>Bonnes réponses : 🔵 {teamOk("A")} · 🔴 {teamOk("B")} — la corde s'arrête à ±{tug.max} bonnes réponses par élève</p>
+    const teamOf = Object.fromEntries(players.map((p) => [p.id, p]));
+    const ok = (t) => answers.filter((a) => a.correct && teamOf[a.player_id]?.team === t).length;
+    const feed = answers.filter((a) => a.correct && teamOf[a.player_id]?.team)
+      .sort((x, y) => String(y.created_at).localeCompare(String(x.created_at))).slice(0, 6);
+    const toggleFs = () => { const el = document.getElementById("nb-monitor"); if (document.fullscreenElement) document.exitFullscreen(); else el?.requestFullscreen?.(); };
+    return <div id="nb-monitor" className="nb-monitor">
+      <div className="nb-topbar">
+        <div className="nb-join"><span>REJOINS&nbsp;:</span><b className="num">{game.pin}</b>{qr && <img src={qr} alt="QR code pour rejoindre" width="64" height="64" />}</div>
+        <div className="nb-title">{game.titre}</div>
+        <div className="nb-actions">
+          <button type="button" className="nb-btn" onClick={toggleFs}>⛶ Plein écran</button>
+          <button type="button" className="nb-btn nb-btn-red" onClick={finish}>🏁 Terminer</button>
+        </div>
       </div>
-      <div className="card">
-        <div className="overline" style={{ marginBottom: "0.4rem" }}>Avancement ({nbQ} questions)</div>
-        {players.map((p) => {
-          const n = answers.filter((a) => a.player_id === p.id).length;
-          return <div key={p.id} className="score-row">
-            <span className="score-name">{p.team ? TEAMS[p.team].dot : "⚪"} {p.nom}</span>
-            <span className="score-pts num">{Math.min(n, nbQ)}/{nbQ}</span>
-          </div>;
-        })}
+      <Rope pos={tug.pos} max={tug.max} sizes={tug.size} big />
+      <div className="nb-scores">
+        <div className="nb-score" style={{ background: TEAMS.A.color }}><span>{TEAMS.A.name}</span><b className="num">{ok("A")}</b></div>
+        <div className="nb-feed" aria-live="polite">
+          <div className="nb-feed-title">⚡ DERNIERS POINTS</div>
+          {feed.length === 0 && <div className="nb-feed-empty">En attente de la 1ère bonne réponse…</div>}
+          {feed.map((a, i) => <div key={`${a.player_id}-${a.q_index}`} className="nb-feed-row" style={{ borderLeftColor: TEAMS[teamOf[a.player_id].team].color, opacity: 1 - i * 0.12 }}>
+            {TEAMS[teamOf[a.player_id].team].dot} {teamOf[a.player_id].nom}</div>)}
+        </div>
+        <div className="nb-score" style={{ background: TEAMS.B.color }}><span>{TEAMS[ "B" ].name}</span><b className="num">{ok("B")}</b></div>
       </div>
+      <p className="nb-note">La corde s'arrête à ±{tug.max} bonnes réponses par élève · {nbQ} questions · {tugDone}/{players.length} élèves ont fini</p>
       {error && <div className="alert" role="alert">{error}</div>}
-      <button type="button" className="btn btn-secondary" style={{ marginTop: "1rem" }} onClick={finish}>Terminer maintenant 🏁</button>
     </div>;
   }
 
@@ -387,9 +387,10 @@ export function LiveHost({ quiz, onExit }) {
   return <div className="result">
     <div className="result-emoji" aria-hidden="true">🏆</div>
     <h1 className="page-title" style={{ marginBottom: "1rem" }}>Partie terminée</h1>
-    {game.mode === "tug" && <div className="card" style={{ marginBottom: "1.5rem" }}>
-      <Rope pos={tug.pos} max={tug.max} />
-      <h2 className="section-title" style={{ textAlign: "center", color: tug.leader ? TEAMS[tug.leader].color : undefined }}>{tug.leader ? `${TEAMS[tug.leader].dot} ${TEAMS[tug.leader].name} gagne !` : "Égalité !"}</h2>
+    {game.mode === "tug" && <div className="nb-monitor" style={{ marginBottom: "1.5rem" }}>
+      <Confetti />
+      <Rope pos={tug.pos} max={tug.max} sizes={tug.size} big />
+      <div className="nb-winner" style={{ background: tug.leader ? TEAMS[tug.leader].color : "#facc15", color: tug.leader ? "#fff" : "#111" }}>{tug.leader ? `${TEAMS[tug.leader].dot} ${TEAMS[tug.leader].name.toUpperCase()} GAGNE !` : "ÉGALITÉ !"}</div>
     </div>}
     {game.mode !== "tug" && <div className="card" style={{ textAlign: "left", marginBottom: "1.5rem" }}>
       <h2 className="section-title" style={{ marginBottom: "0.6rem" }}>{game.mode === "competition" ? "Classement final" : "Résultats de la révision"}</h2>
@@ -582,7 +583,7 @@ export function LiveJoin() {
     body = !team ? <p className="live-wait" role="status">⏳ Le prof te place dans une équipe…</p>
       : <div>
         <p className="banner" data-tone="neutral" style={{ borderColor: TEAMS[team].color }}>{TEAMS[team].dot} {TEAMS[team].name}</p>
-        {tugView && <Rope pos={tugView.pos} max={tugView.max} />}
+        {tugView && <Rope pos={tugView.pos} max={tugView.max} sizes={tugView.size} />}
         {!qq ? <div className="live-center" role="status"><div className="result-emoji" aria-hidden="true">🏁</div><p><b>Tu as terminé !</b></p><p className="hint">Regarde la corde, ton équipe compte sur les autres.</p></div>
           : tugRes ? <div>
             <div className="live-center" role="status">{tugRes.correct ? <><div className="result-emoji" aria-hidden="true">💪</div><h2 className="page-title">Tu tires la corde !</h2></> : <><div className="result-emoji" aria-hidden="true">😅</div><h2 className="page-title">Raté…</h2></>}</div>
@@ -598,7 +599,8 @@ export function LiveJoin() {
   } else if (isTug && game.status === "finished") {
     const win = tugView?.leader;
     body = <div className="live-center" role="status"><div className="result-emoji" aria-hidden="true">🏁</div><h2 className="page-title">Partie terminée !</h2>
-      {tugView && <Rope pos={tugView.pos} max={tugView.max} />}
+      {win === team && <Confetti />}
+      {tugView && <Rope pos={tugView.pos} max={tugView.max} sizes={tugView.size} />}
       {win ? <p className="banner" data-tone={win === team ? "ok" : "neutral"}>{win === team ? "🎉 Ton équipe a gagné !" : `${TEAMS[win].dot} ${TEAMS[win].name} gagne.`}</p> : <p className="banner" data-tone="neutral">Égalité !</p>}
       <button type="button" className="btn btn-primary" onClick={leave}>Quitter</button></div>;
   } else if (game.status === "lobby") {

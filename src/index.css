@@ -881,3 +881,55 @@ button.res:hover { background: var(--ivory-2); }
 .tug-knot{position:absolute;top:50%;transform:translate(-50%,-50%);font-size:1.6rem;transition:left .6s ease}
 .tug-pick{display:flex;gap:.4rem}
 @media (max-width:520px){.tug-end{font-size:.7rem;white-space:normal;max-width:4.5rem;text-align:center}}
+
+/* ── Tug of War : néo-brutalisme ──────────────────────────── */
+.nb-arena{border:4px solid #111;background:#fde68a;box-shadow:8px 8px 0 #111;margin:.8rem 0;font-family:var(--sans)}
+.nb-head{display:flex;justify-content:space-between;align-items:center;padding:.5rem;background:#fff;border-bottom:4px solid #111}
+.nb-tag{color:#fff;font-weight:900;letter-spacing:.06em;padding:.25rem .7rem;border:3px solid #111;box-shadow:3px 3px 0 #111;font-size:.85rem}
+.nb-vs{font-weight:900;font-size:1.1rem}
+.nb-field{position:relative;height:150px;overflow:hidden}
+.nb-zone{position:absolute;top:0;bottom:0;width:12%}
+.nb-zone-a{left:0;background:repeating-linear-gradient(45deg,#2563eb 0 10px,#1d4ed8 10px 20px);border-right:4px solid #111}
+.nb-zone-b{right:0;background:repeating-linear-gradient(45deg,#e11d48 0 10px,#be123c 10px 20px);border-left:4px solid #111}
+.nb-mid{position:absolute;left:50%;top:0;bottom:0;border-left:4px dashed #111}
+.nb-crew{position:absolute;bottom:14px;display:flex;gap:2px;font-size:2rem;transition:transform .6s cubic-bezier(.3,1.6,.5,1)}
+.nb-crew-a{left:14%}
+.nb-crew-b{right:14%}
+.nb-crew-a span{display:inline-block;transform:scaleX(-1) rotate(-12deg);animation:nb-tug .7s ease-in-out infinite alternate}
+.nb-crew-b span{display:inline-block;transform:rotate(-12deg);animation:nb-tug .7s ease-in-out infinite alternate-reverse}
+@keyframes nb-tug{to{translate:0 -4px}}
+.nb-rope{position:absolute;left:12%;right:12%;top:50%;height:12px;margin-top:-6px;border:3px solid #111;background:repeating-linear-gradient(90deg,#a16207 0 8px,#ca8a04 8px 16px)}
+.nb-flag{position:absolute;top:50%;transform:translate(-50%,-70%);font-size:2.4rem;transition:left .6s cubic-bezier(.3,1.6,.5,1);filter:drop-shadow(3px 3px 0 #111)}
+.nb-flag span{display:inline-block;animation:nb-pop .5s ease}
+@keyframes nb-pop{0%{transform:scale(1)}40%{transform:scale(1.6) rotate(-15deg)}100%{transform:scale(1)}}
+.nb-ground{height:14px;background:#111}
+.nb-big .nb-field{height:min(34vh,300px)}
+.nb-big .nb-crew{font-size:clamp(2.4rem,5vw,4.2rem)}
+.nb-big .nb-flag{font-size:clamp(3rem,6vw,5rem)}
+.nb-big .nb-tag{font-size:clamp(1rem,2.2vw,1.8rem)}
+.nb-monitor{position:relative;background:#fffbea;padding:1rem;border:4px solid #111;box-shadow:8px 8px 0 #111;overflow:hidden}
+.nb-monitor:fullscreen{padding:2vw;overflow:auto}
+.nb-topbar{display:flex;flex-wrap:wrap;gap:.8rem;align-items:center;justify-content:space-between}
+.nb-join{display:flex;align-items:center;gap:.6rem;background:#facc15;border:4px solid #111;box-shadow:4px 4px 0 #111;padding:.3rem .8rem;font-weight:900}
+.nb-join b{font-size:clamp(1.6rem,4vw,2.8rem);letter-spacing:.12em}
+.nb-join img{border:3px solid #111;background:#fff}
+.nb-title{flex:1;min-width:12rem;text-align:center;font-weight:900;text-transform:uppercase;font-size:clamp(1rem,2.4vw,1.8rem)}
+.nb-actions{display:flex;gap:.5rem}
+.nb-btn{font:800 .9rem var(--sans);background:#fff;border:3px solid #111;box-shadow:4px 4px 0 #111;padding:.5rem .8rem;cursor:pointer}
+.nb-btn:active{transform:translate(3px,3px);box-shadow:1px 1px 0 #111}
+.nb-btn-red{background:#fecdd3}
+.nb-scores{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:.8rem;align-items:stretch}
+.nb-score{color:#fff;border:4px solid #111;box-shadow:5px 5px 0 #111;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:.6rem;font-weight:900;text-transform:uppercase;text-align:center}
+.nb-score b{font-size:clamp(2.4rem,7vw,5.5rem);line-height:1}
+.nb-feed{background:#fff;border:4px solid #111;padding:.5rem .7rem;min-height:7rem}
+.nb-feed-title{font-weight:900;font-size:.8rem;margin-bottom:.3rem}
+.nb-feed-row{font-weight:800;border-left:8px solid;padding-left:.5rem;margin:.2rem 0;font-size:clamp(.9rem,1.8vw,1.3rem);animation:nb-in .35s ease}
+.nb-feed-empty{color:#555;font-size:.9rem}
+@keyframes nb-in{from{transform:translateX(-20px);opacity:0}}
+.nb-note{margin:.8rem 0 0;font-weight:700;font-size:.85rem;text-align:center}
+.nb-winner{border:4px solid #111;box-shadow:6px 6px 0 #111;text-align:center;font-weight:900;font-size:clamp(1.4rem,4vw,3rem);padding:.6rem;animation:nb-pop .8s ease}
+.nb-confetti{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:5}
+.nb-confetti i{position:absolute;top:-14px;width:10px;height:16px;border:2px solid #111;animation:nb-fall linear infinite}
+@keyframes nb-fall{to{top:105%;rotate:540deg}}
+@media (max-width:640px){.nb-scores{grid-template-columns:1fr 1fr}.nb-feed{grid-column:1/-1;order:3}.nb-field{height:120px}}
+@media (prefers-reduced-motion:reduce){.nb-crew span,.nb-flag span,.nb-confetti i,.nb-winner{animation:none}.nb-flag,.nb-crew{transition:none}}

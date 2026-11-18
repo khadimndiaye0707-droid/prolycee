@@ -960,6 +960,8 @@ function Kahoot({onAddXP}){
 
 // ── TUG OF WAR ────────────────────────────────────────────────
 function TugOfWar({onAddXP}){
+  const lib=useLibrary();
+  const [liveQuiz,setLiveQuiz]=useState(null);
   const [phase,setPhase]=useState("setup");
   const [teamA,setTeamA]=useState("Équipe Bleue");
   const [teamB,setTeamB]=useState("Équipe Rouge");
@@ -1003,6 +1005,8 @@ function TugOfWar({onAddXP}){
     if(next>=questions.length){setPhase("end");return;}
     setQIdx(next);setAnsA("");setAnsB("");setResult(null);
   };
+
+  if(liveQuiz){return <LiveHost quiz={liveQuiz} initialMode="tug" onExit={()=>setLiveQuiz(null)}/>;}
 
   if(phase==="end"){
     const winner=scoreA===scoreB?null:scoreA>scoreB?teamA:teamB;
@@ -1061,7 +1065,19 @@ function TugOfWar({onAddXP}){
 
   return <div>
     <PageHeader icon="🎯" title="Tug of War" subtitle="Le tir à la corde pédagogique"/>
-    <Callout>⭐ +{XP_GAINS.tug_correct} XP par bonne réponse · +{XP_GAINS.tug_win} XP pour la victoire</Callout>
+    <div className="card" style={{marginBottom:"1.2rem",border:"3px solid #111",boxShadow:"6px 6px 0 #111",background:"#fde68a"}}>
+      <h2 className="section-title" style={{marginTop:0}}>📡 Tug of War en direct (téléphones des élèves)</h2>
+      <p className="hint">Choisis un quiz de ta bibliothèque : PIN + QR code, tu formes les équipes, et l'écran moniteur se projette au tableau.</p>
+      {!lib.ready&&<LibraryLogin lib={lib}/>}
+      {(lib.items||[]).map(q=>(
+        <div key={q.id} className="score-row" style={{gap:"0.6rem"}}>
+          <span className="score-name">{q.title} <span className="hint">· {q.questions.length} q.</span></span>
+          <Btn sm onClick={()=>setLiveQuiz(q)}>🪢 Lancer</Btn>
+        </div>
+      ))}
+      {lib.ready&&(lib.items||[]).length===0&&<p className="hint">Aucun quiz sauvegardé pour l'instant (page Kahoot → « + Nouveau »).</p>}
+    </div>
+    <Callout>⭐ +{XP_GAINS.tug_correct} XP par bonne réponse · +{XP_GAINS.tug_win} XP pour la victoire (version une seule classe, ci-dessous)</Callout>
     <div className="grid-2 stack-xs" style={{marginBottom:"1.2rem"}}>
       {[["a","Équipe Bleue","#0e7490",teamA,setTeamA],["b","Équipe Rouge","#c81e3a",teamB,setTeamB]].map(([t,placeholder,col,val,setVal])=>(
         <div key={t} className="card card-accent" style={{"--accent":col}}>
