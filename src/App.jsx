@@ -1,10 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-// ── SUPABASE ─────────────────────────────────────────────────
-const SUPABASE_URL = "https://winfcuvshinsxielsnln.supabase.co";
-const SUPABASE_KEY = "sb_publishable_DAHanJxjvlh61GukxXfXUQ_NvVomXGf";
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+import { supabase } from "./supabase";
+import { LiveHost, LiveJoin, Roster, LiveChampionship } from "./Live";
 
 // ── XP SYSTEM ────────────────────────────────────────────────
 const LEVELS = [
@@ -337,6 +333,7 @@ function Sidebar({active,setActive,user,open,onClose,onLogout}){
     {id:"dashboard",icon:"🏠",label:"Tableau de bord"},
     {id:"classes",icon:"📚",label:"Mes Classes"},
     {id:"notes",icon:"📊",label:"Notes & Suivi"},
+    ...(user.role==="prof"?[{id:"roster",icon:"🧑‍🎓",label:"Élèves & codes"}]:[]),
     null,
     {id:"kahoot",icon:"🎮",label:"Kahoot"},
     {id:"tugofwar",icon:"🎯",label:"Tug of War"},
@@ -675,6 +672,7 @@ function Kahoot({onAddXP}){
   const [generated,setGenerated]=useState([]);
   const [loading,setLoading]=useState(false);
   const [combo,setCombo]=useState(0);
+  const [liveQuiz,setLiveQuiz]=useState(null);
   const timerRef=useRef(null);
   const colors=["#e74c3c","#3498db","#2ecc71","#f39c12"];
 
@@ -729,6 +727,10 @@ function Kahoot({onAddXP}){
     }
     setLoading(false);
   };
+
+  if(liveQuiz){
+    return <LiveHost quiz={liveQuiz} onExit={()=>setLiveQuiz(null)}/>;
+  }
 
   if(mode==="play"&&playing){
     const q=playing.questions[qIdx];
@@ -939,7 +941,10 @@ function Kahoot({onAddXP}){
           <div className="quiz-row-title">{q.title}</div>
           <div className="quiz-row-meta"><Badge type={q.filiere}>{q.filiere==="seconde"?"🏛️ Seconde":q.filiere==="premiere"?"📐 1ère TBAA":"🏗️ Terminale TBAA"}</Badge><span>{q.questions.length} question{q.questions.length>1?"s":""}</span></div>
         </div>
-        <Btn onClick={()=>startQuiz(q)} sm>▶ Lancer</Btn>
+        <div className="btn-row">
+          <Btn onClick={()=>setLiveQuiz(q)} sm color="#a16207">📡 Live</Btn>
+          <Btn onClick={()=>startQuiz(q)} sm variant="secondary">▶ Solo</Btn>
+        </div>
       </Card>
     ))}
   </div>;
@@ -1088,13 +1093,16 @@ function Championship(){
     {rank:4,name:"Saliou B.",classe:"seconde",k:[600,700,650,600],total:2550},
     {rank:5,name:"Fatou N.",classe:"premiere",k:[500,600,550,500],total:2150},
   ];
-  const [tab,setTab]=useState("xp");
+  const [tab,setTab]=useState("live");
   return <div>
     <PageHeader icon="🏆" title="Championnat" subtitle="Classement général"/>
     <div className="tabs" role="group" aria-label="Type de classement">
+      <button type="button" className="tab" aria-pressed={tab==="live"} onClick={()=>setTab("live")}>📡 Compétitions live</button>
       <button type="button" className="tab" aria-pressed={tab==="xp"} onClick={()=>setTab("xp")}>⭐ Classement XP</button>
       <button type="button" className="tab" aria-pressed={tab==="kahoot"} onClick={()=>setTab("kahoot")}>🎮 Classement Kahoot</button>
     </div>
+
+    {tab==="live"&&<LiveChampionship/>}
 
     {tab==="xp"&&<>
       <Card style={{marginBottom:"1rem"}}>
@@ -1182,6 +1190,12 @@ function Moodle(){
 
 // ── APP SHELL ─────────────────────────────────────────────────
 export default function App(){
+  // Page élève du quiz live : accessible sans connexion
+  if(window.location.pathname.startsWith("/jouer")) return <LiveJoin/>;
+  return <AppShell/>;
+}
+
+function AppShell(){
   const [user,setUser]=useState(null);
   const [active,setActive]=useState("dashboard");
   const [toasts,setToasts]=useState([]);
@@ -1243,6 +1257,7 @@ export default function App(){
     dashboard:<Dashboard user={user} onAddXP={addXP}/>,
     classes:<Classes/>,
     notes:<Notes/>,
+    roster:<Roster/>,
     kahoot:<Kahoot onAddXP={addXP}/>,
     tugofwar:<TugOfWar onAddXP={addXP}/>,
     championship:<Championship/>,

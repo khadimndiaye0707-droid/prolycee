@@ -814,3 +814,30 @@ button.res:hover { background: var(--ivory-2); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* ── Quiz live ───────────────────────────────────────────── */
+.live-modes { display: grid; gap: 0.8rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.live-modes .mode-card { padding: 1.1rem 1rem; }
+.live-modes .mode-card[data-selected="true"] { border-color: var(--accent, var(--primary)); box-shadow: 0 0 0 2px var(--accent, var(--primary)); }
+.live-mode-badge { background: var(--gold-tint); color: var(--gold-ink); border-color: #dec8a8; }
+.live-lobby { text-align: center; padding: 1.6rem 1rem; }
+.pin-display { font: 700 clamp(2.6rem, 9vw, 4.6rem)/1.1 var(--serif); letter-spacing: 0.18em; margin: 0.4rem 0 0.8rem; color: var(--primary); }
+.live-qr { display: block; margin: 0 auto 0.8rem; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.live-players { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.live-player { background: var(--ivory); color: var(--ink); border-color: var(--line-strong); font-size: 0.85rem; }
+.live-count { text-align: center; font-weight: 700; margin: 1rem 0; }
+.live-bar-count { margin-left: auto; font-weight: 700; font-size: 1.1rem; }
+.roster-code { font: 700 1.05rem/1 var(--serif); letter-spacing: 0.15em; color: var(--primary); }
+
+.live-wrap { max-width: 560px; margin: 0 auto; padding: 1rem 1rem 2rem; min-height: 100vh; }
+.live-brand { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.live-card { padding: 1.4rem 1.2rem; }
+.live-input { font-size: 1.4rem; text-align: center; letter-spacing: 0.2em; font-weight: 700; }
+.live-center { text-align: center; padding: 1.5rem 0; }
+.live-wait { text-align: center; color: var(--muted); padding: 2rem 0; }
+.live-qhead { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+.kh-timer-sm { font: 700 1.6rem/1 var(--serif); }
+.live-q { font-size: 1.15rem; margin-bottom: 1rem; text-align: center; }
+.live-grid { grid-template-columns: 1fr; }
+.live-grid .kh-answer { min-height: 64px; }
+.live-pts { font: 700 1.8rem/1.2 var(--serif); color: var(--gold-ink); margin: 0.4rem 0 1rem; }
