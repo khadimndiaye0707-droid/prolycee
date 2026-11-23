@@ -562,6 +562,84 @@ export function LiveJoin() {
   </div>;
 }
 
+// Accès au site : code élève commun (modifiable) et code prof personnel
+const makeCode = (len = 8) => {
+  const alpha = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; const a = new Uint32Array(len); crypto.getRandomValues(a);
+  const c = Array.from(a, (n) => alpha[n % alpha.length]).join("");
+  return len === 8 ? `${c.slice(0, 4)}-${c.slice(4)}` : c;
+};
+
+function AccessPanel({ secret, onProfCodeChanged }) {
+  const [studentCode, setStudentCode] = useState(null);
+  const [show, setShow] = useState(false);
+  const [newStudent, setNewStudent] = useState("");
+  const [newProf, setNewProf] = useState("");
+  const [confirm, setConfirm] = useState("");        // "student" | "prof" : attend la confirmation
+  const [msg, setMsg] = useState(""); const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
+
+  const loadCode = async () => {
+    const { data, error: e } = await supabase.rpc("host_get_student_code", { p_secret: secret.trim() });
+    if (e) setErr(errText(e)); else setStudentCode(data || "");
+  };
+  useEffect(() => {
+    let off = false;
+    supabase.rpc("host_get_student_code", { p_secret: secret.trim() }).then(({ data, error: e }) => {
+      if (off) return;
+      if (e) setErr(errText(e)); else setStudentCode(data || "");
+    });
+    return () => { off = true; };
+  }, [secret]);
+
+  const run = async (fn, args, ok) => {
+    setBusy(true); setErr(""); setMsg("");
+    const { error: e } = await supabase.rpc(fn, args);
+    setBusy(false); setConfirm("");
+    if (e) { setErr(errText(e)); return false; }
+    setMsg(ok); return true;
+  };
+  const saveStudent = async () => {
+    if (await run("host_set_student_code", { p_secret: secret.trim(), p_code: newStudent }, "Code élève modifié : tous les élèves connectés avec l'ancien code sont déconnectés. Donne-leur le nouveau code.")) { setNewStudent(""); loadCode(); }
+  };
+  const saveProf = async () => {
+    const code = newProf.trim();
+    if (await run("host_set_prof_secret", { p_secret: secret.trim(), p_new: code }, "Code prof modifié : les autres appareils prof sont déconnectés. Garde-le précieusement.")) { onProfCodeChanged(code); setNewProf(""); }
+  };
+
+  return <div className="card" style={{ marginBottom: "1rem" }}>
+    <div className="overline">🔐 Accès au site</div>
+    <p className="hint">Le site est fermé : il faut un code pour entrer. Le code élève est commun à la classe et n'ouvre jamais les fonctions prof.</p>
+    <div className="form-row">
+      <span className="label">Code élève actuel</span>
+      <div className="btn-row">
+        <b className="roster-code num" aria-live="polite">{studentCode === null ? "…" : studentCode ? (show ? studentCode : "••••••••") : "aucun (personne ne peut entrer)"}</b>
+        {studentCode && <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShow((v) => !v)}>{show ? "Masquer" : "Afficher"}</button>}
+      </div>
+    </div>
+    <div className="form-row">
+      <label className="label" htmlFor="ac-student">Nouveau code élève (6 caractères minimum)</label>
+      <div className="btn-row">
+        <input id="ac-student" className="field" style={{ maxWidth: 240 }} autoComplete="off" value={newStudent} onChange={(e) => { setNewStudent(e.target.value); setConfirm(""); }} />
+        <button type="button" className="btn btn-secondary" onClick={() => { setNewStudent(makeCode()); setConfirm(""); }}>🎲 Générer</button>
+        {confirm === "student"
+          ? <button type="button" className="btn btn-primary" disabled={busy} onClick={saveStudent}>Confirmer : déconnecter les élèves</button>
+          : <button type="button" className="btn btn-primary" disabled={busy || newStudent.trim().length < 6} onClick={() => setConfirm("student")}>Changer le code élève</button>}
+      </div>
+      <div className="hint">Changer le code déconnecte aussitôt tous les élèves qui avaient l'ancien : ils devront saisir le nouveau.</div>
+    </div>
+    <div className="form-row">
+      <label className="label" htmlFor="ac-prof">Nouveau code prof personnel (12 caractères minimum)</label>
+      <div className="btn-row">
+        <input id="ac-prof" type="password" className="field" style={{ maxWidth: 240 }} autoComplete="new-password" value={newProf} onChange={(e) => { setNewProf(e.target.value); setConfirm(""); }} />
+        {confirm === "prof"
+          ? <button type="button" className="btn btn-primary" disabled={busy} onClick={saveProf}>Confirmer</button>
+          : <button type="button" className="btn btn-secondary" disabled={busy || newProf.trim().length < 12} onClick={() => setConfirm("prof")}>Changer mon code prof</button>}
+      </div>
+    </div>
+    {msg && <div className="banner" data-tone="ok" role="status">✅ {msg}</div>}
+    {err && <div className="alert" role="alert">{err}</div>}
+  </div>;
+}
+
 // ════════════════════════════════════════════════════════════════
 //  PROF — liste de classe et codes personnels
 // ════════════════════════════════════════════════════════════════
@@ -579,6 +657,15 @@ export function Roster() {
     const { data, error: e } = await supabase.rpc("host_roster_list", { p_secret: secret.trim() });
     if (e) { setError(errText(e)); setRows(null); } else setRows(data);
   };
+  useEffect(() => {
+    if (!secret.trim()) return;
+    let off = false;
+    supabase.rpc("host_roster_list", { p_secret: secret.trim() }).then(({ data, error: e }) => {
+      if (off) return;
+      if (e) { setError(errText(e)); setRows(null); } else setRows(data);
+    });
+    return () => { off = true; };
+  }, [secret]);
 
   const add = async () => {
     const list = names.split("\n").map((s) => s.trim()).filter(Boolean);
@@ -616,6 +703,7 @@ export function Roster() {
       {error && <div className="alert" role="alert">{error}</div>}
     </div>
     {rows && <>
+      <AccessPanel secret={secret} onProfCodeChanged={saveSecret} />
       <div className="chip-row" role="group" aria-label="Classe" style={{ marginBottom: "1rem" }}>
         {Object.entries(CLASSES).map(([k, label]) => <button type="button" key={k} className="chip" aria-pressed={classe === k} onClick={() => setClasse(k)}>{label}</button>)}
       </div>

@@ -1,0 +1,17 @@
+create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
+create schema auth; create schema extensions; create schema storage;
+grant usage on schema public to anon, authenticated, service_role;
+grant usage on schema auth, extensions to anon, authenticated;
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+create table storage.buckets (id text primary key, name text, public boolean, file_size_limit bigint, allowed_mime_types text[]);
+create table storage.objects (id uuid default gen_random_uuid() primary key, bucket_id text, name text);
+alter table storage.objects enable row level security;
+grant usage on schema storage to anon, authenticated; grant all on storage.objects, storage.buckets to anon, authenticated;
+create publication supabase_realtime;
+create table public.profiles (id uuid primary key, nom text, classe text, xp int);
+alter table public.profiles enable row level security;
+create policy "all read" on public.profiles for select using (true);
+insert into public.profiles values (gen_random_uuid(),'Ancien','terminale',500);
