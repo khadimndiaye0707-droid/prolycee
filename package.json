@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "predev": "node scripts/copy-wasm.mjs",
-    "prebuild": "node scripts/copy-wasm.mjs"
+    "prebuild": "node scripts/copy-wasm.mjs",
+    "test:portail": "node --test netlify/gate.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",

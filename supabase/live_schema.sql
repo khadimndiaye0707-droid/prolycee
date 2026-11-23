@@ -1,24 +1,29 @@
 -- ════════════════════════════════════════════════════════════════
---  ProLycée — Quiz live + quiz BTP (plans, zones, 3D)
+--  ProLycée — Base de données : quiz live, quiz BTP, ACCÈS FERMÉ PAR CODES
 --  À coller dans Supabase > SQL Editor > New query > Run.
---  Ce script peut être relancé sans risque (même s'il a déjà été exécuté).
---  Avant de lancer : remplace MON-CODE-PROF (ligne « app_config ») par
---  ton propre code secret (tu le taperas dans le site pour piloter les parties).
+--  Ce script peut être relancé sans risque (même s'il a déjà été exécuté) :
+--  il garde tes codes, ta liste de classe et tes quiz.
+--
+--  Principe : rien n'est lisible sans code valide. Deux codes :
+--    • le code PROF (personnel)  → administration
+--    • le code ÉLÈVE (commun)    → entrée sur le site, jamais les fonctions prof
+--  Les droits sont vérifiés ICI, côté serveur (règles RLS + fonctions).
+--  Changer un code révoque tout de suite tous les accès obtenus avec l'ancien.
 -- ════════════════════════════════════════════════════════════════
 
--- ── 1. Code secret du prof ───────────────────────────────────────
+create extension if not exists pgcrypto with schema extensions;
+
+-- ── 1. Configuration et codes ────────────────────────────────────
 create table if not exists app_config (key text primary key, value text not null);
 alter table app_config enable row level security;   -- aucune policy = illisible depuis le site
+
+-- Code prof : remplace MON-CODE-PROF par ton vrai code (12 caractères ou plus) AVANT de lancer.
+-- Tant qu'il vaut « MON-CODE-PROF », la connexion prof est refusée (code d'exemple interdit).
 insert into app_config (key, value) values ('prof_secret', 'MON-CODE-PROF')
   on conflict (key) do nothing;
-
-create or replace function _check_prof(p_secret text) returns void
-language plpgsql security definer set search_path = public as $$
-begin
-  if p_secret is null or p_secret <> (select value from app_config where key = 'prof_secret') then
-    raise exception 'Code prof incorrect';
-  end if;
-end $$;
+-- Clé serveur aléatoire : sert à la fois à signer le portail Netlify et à masquer les empreintes des codes.
+insert into app_config (key, value) values ('gate_key', encode(extensions.gen_random_bytes(32), 'hex'))
+  on conflict (key) do nothing;
 
 -- ── 2. Tables ────────────────────────────────────────────────────
 create table if not exists roster (                  -- liste de classe + code personnel
@@ -73,6 +78,9 @@ alter table live_answers add column if not exists x numeric;      -- clic sur le
 alter table live_answers add column if not exists y numeric;
 alter table live_answers add column if not exists value numeric;  -- réponse numérique
 
+alter table roster add column if not exists xp int not null default 0;          -- progression de l'élève
+alter table live_players add column if not exists owner uuid;                    -- session qui joue ce joueur
+
 -- Quiz sauvegardés (contiennent les bonnes réponses : lisibles uniquement avec le code prof)
 create table if not exists quizzes (
   id uuid primary key default gen_random_uuid(),
@@ -85,7 +93,237 @@ create table if not exists quizzes (
 );
 alter table quizzes enable row level security;
 
--- ── 3. Sécurité : lecture publique du jeu, écriture uniquement par les fonctions ──
+-- ── 2 bis. Accès fermé : sessions, codes, empreintes, anti-essais ─────────
+-- Chaque appareil reçoit une session anonyme Supabase (aucun e-mail). Elle ne donne AUCUN droit
+-- tant que le bon code n'a pas été saisi : le code valide crée une « autorisation » (access_grants).
+-- L'autorisation porte l'empreinte du code utilisé : si le code change, elle devient invalide.
+
+create table if not exists access_grants (
+  user_id uuid primary key,
+  role text not null check (role in ('prof','eleve')),
+  fp text not null,                                  -- empreinte (HMAC) du code utilisé
+  roster_id uuid references roster(id) on delete set null,   -- identité de l'élève (code personnel)
+  guest_nom text,                                    -- élève sans code personnel : prénom et classe
+  guest_classe text check (guest_classe in ('seconde','premiere','terminale')),
+  created_at timestamptz not null default now(),
+  last_seen timestamptz not null default now()
+);
+alter table access_grants enable row level security;
+
+create table if not exists access_attempts (
+  id bigserial primary key,
+  who text not null,
+  at timestamptz not null default now()
+);
+create index if not exists access_attempts_who_at on access_attempts (who, at);
+alter table access_attempts enable row level security;
+
+revoke all on app_config, roster, access_grants, access_attempts from anon, authenticated;
+revoke all on sequence access_attempts_id_seq from anon, authenticated;
+
+-- Code « utilisable » : null si absent ou si c'est encore le code d'exemple.
+create or replace function _secret(p_role text) returns text
+language sql stable security definer set search_path = public as $$
+  select case p_role
+    when 'prof'  then nullif((select value from app_config where key = 'prof_secret'), 'MON-CODE-PROF')
+    when 'eleve' then (select value from app_config where key = 'student_code')
+  end
+$$;
+
+-- Normalisation : le code élève ignore majuscules et espaces autour ; le code prof est exact.
+create or replace function _norm(p_role text, p_code text) returns text
+language sql immutable as $$
+  select case when p_role = 'eleve' then lower(trim(coalesce(p_code, ''))) else trim(coalesce(p_code, '')) end
+$$;
+
+-- Empreinte d'un code (HMAC avec la clé serveur) : ne permet pas de retrouver le code.
+create or replace function _fp(p_role text, p_code text) returns text
+language sql stable security definer set search_path = public, extensions as $$
+  select case when p_code is null then null else
+    encode(hmac(convert_to(_norm(p_role, p_code), 'utf8'),
+                convert_to((select value from app_config where key = 'gate_key'), 'utf8'), 'sha256'), 'hex') end
+$$;
+
+-- Rôle de la session courante, ou null si elle n'a pas (ou plus) de droit.
+create or replace function my_role() returns text
+language sql stable security definer set search_path = public as $$
+  select g.role from access_grants g
+  where g.user_id = auth.uid() and g.fp = _fp(g.role, _secret(g.role))
+$$;
+create or replace function is_member() returns boolean
+language sql stable security definer set search_path = public as $$ select coalesce(my_role() is not null, false) $$;
+create or replace function is_prof() returns boolean
+language sql stable security definer set search_path = public as $$ select coalesce(my_role() = 'prof', false) $$;
+
+-- Identifiant de l'appelant pour limiter les essais (IP réelle si disponible).
+create or replace function _who() returns text
+language sql stable as $$
+  select coalesce(
+    nullif(trim(split_part(coalesce(nullif(current_setting('request.headers', true), '')::json ->> 'x-forwarded-for', ''), ',', 1)), ''),
+    'uid:' || coalesce(auth.uid()::text, 'anon'))
+$$;
+
+-- Teste un code. 8 essais ratés en 10 minutes bloquent l'appelant 10 minutes.
+create or replace function _try_code(p_role text, p_code text, p_who text) returns jsonb
+language plpgsql security definer set search_path = public, extensions as $$
+declare v_expected text := _secret(p_role); v_in text := _norm(p_role, p_code);
+begin
+  if p_role not in ('prof', 'eleve') then return jsonb_build_object('ok', false); end if;
+  delete from access_attempts where at < now() - interval '1 day';
+  if (select count(*) from access_attempts where who = p_who and at > now() - interval '10 minutes') >= 8 then
+    return jsonb_build_object('ok', false, 'locked', true);
+  end if;
+  if v_expected is not null and v_in <> '' and v_in = _norm(p_role, v_expected) then
+    return jsonb_build_object('ok', true, 'fp', _fp(p_role, v_expected));
+  end if;
+  insert into access_attempts (who) values (p_who);
+  return jsonb_build_object('ok', false);
+end $$;
+
+-- Vérifie le code prof à chaque action d'administration : session prof valide ET code exact.
+create or replace function _check_prof(p_secret text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+  if not is_prof() then raise exception 'Accès refusé'; end if;
+  if _secret('prof') is null or _norm('prof', p_secret) is distinct from _norm('prof', _secret('prof')) then
+    raise exception 'Code prof incorrect';
+  end if;
+end $$;
+
+-- Saisie d'un code depuis le site : crée l'autorisation de cet appareil.
+create or replace function redeem_code(p_code text, p_role text) returns jsonb
+language plpgsql security definer set search_path = public, extensions as $$
+declare r jsonb;
+begin
+  if auth.uid() is null then raise exception 'Session requise'; end if;
+  r := _try_code(p_role, p_code, _who());
+  if coalesce((r ->> 'ok')::boolean, false) then
+    insert into access_grants (user_id, role, fp) values (auth.uid(), p_role, r ->> 'fp')
+    on conflict (user_id) do update set
+      roster_id    = case when access_grants.role = excluded.role and access_grants.fp = excluded.fp then access_grants.roster_id else null end,
+      guest_nom    = case when access_grants.role = excluded.role and access_grants.fp = excluded.fp then access_grants.guest_nom else null end,
+      guest_classe = case when access_grants.role = excluded.role and access_grants.fp = excluded.fp then access_grants.guest_classe else null end,
+      role = excluded.role, fp = excluded.fp, last_seen = now();
+    delete from access_grants where last_seen < now() - interval '120 days';
+  end if;
+  return r - 'fp';
+end $$;
+
+-- État de la session : null = pas (ou plus) de droit → le site renvoie à l'écran de connexion.
+create or replace function my_access() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare v_role text := my_role(); g access_grants; r roster;
+begin
+  if v_role is null then return null; end if;
+  update access_grants set last_seen = now() where user_id = auth.uid();
+  if v_role = 'prof' then return jsonb_build_object('role', 'prof'); end if;
+  select * into g from access_grants where user_id = auth.uid();
+  select * into r from roster where id = g.roster_id;
+  return jsonb_build_object('role', 'eleve',
+    'identified', (r.id is not null or g.guest_nom is not null),
+    'roster', (r.id is not null),
+    'nom', coalesce(r.nom, g.guest_nom),
+    'classe', coalesce(r.classe, g.guest_classe),
+    'xp', coalesce(r.xp, 0));
+end $$;
+
+-- Identité de l'élève : code personnel (déjà donné par le prof) → retrouve sa progression ;
+-- sinon prénom + classe (sans sauvegarde de progression).
+create or replace function set_identity(p_perso text, p_nom text, p_classe text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare r roster; v_who text := 'perso:' || _who(); v_code text := upper(trim(coalesce(p_perso, '')));
+begin
+  if my_role() is distinct from 'eleve' then raise exception 'Accès refusé'; end if;
+  if v_code <> '' then
+    if (select count(*) from access_attempts where who = v_who and at > now() - interval '10 minutes') >= 8 then
+      raise exception 'Trop d''essais, réessaie dans quelques minutes';
+    end if;
+    select * into r from roster where code = v_code;
+    if not found then
+      insert into access_attempts (who) values (v_who);
+      return jsonb_build_object('ok', false, 'error', 'Code personnel inconnu');
+    end if;
+    update access_grants set roster_id = r.id, guest_nom = null, guest_classe = null where user_id = auth.uid();
+  else
+    if length(trim(coalesce(p_nom, ''))) = 0 or p_classe not in ('seconde', 'premiere', 'terminale') then
+      return jsonb_build_object('ok', false, 'error', 'Indique ton prénom et ta classe');
+    end if;
+    update access_grants set roster_id = null, guest_nom = left(trim(p_nom), 20), guest_classe = p_classe where user_id = auth.uid();
+  end if;
+  return jsonb_build_object('ok', true) || my_access();
+end $$;
+
+-- Gain d'XP : uniquement pour un élève identifié par code personnel (progression sauvegardée).
+create or replace function add_xp(p_gain int) returns int
+language plpgsql security definer set search_path = public as $$
+declare v_id uuid; v_xp int;
+begin
+  if my_role() is distinct from 'eleve' then raise exception 'Accès refusé'; end if;
+  select roster_id into v_id from access_grants where user_id = auth.uid();
+  if v_id is null then return null; end if;
+  update roster set xp = least(xp + greatest(least(coalesce(p_gain, 0), 500), 0), 1000000) where id = v_id returning xp into v_xp;
+  return v_xp;
+end $$;
+
+create or replace function sign_out_access() returns void
+language sql security definer set search_path = public as $$ delete from access_grants where user_id = auth.uid() $$;
+
+-- ── Administration des codes (prof uniquement) ───────────────────
+create or replace function host_get_student_code(p_secret text) returns text
+language plpgsql security definer set search_path = public as $$
+begin perform _check_prof(p_secret); return _secret('eleve'); end $$;
+
+-- Change le code élève : tous les accès obtenus avec l'ancien code sont supprimés immédiatement.
+create or replace function host_set_student_code(p_secret text, p_code text) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_code text := trim(coalesce(p_code, ''));
+begin
+  perform _check_prof(p_secret);
+  if length(v_code) < 6 then raise exception 'Le code élève doit faire au moins 6 caractères'; end if;
+  if lower(v_code) = lower(coalesce(_secret('prof'), '')) then raise exception 'Le code élève doit être différent du code prof'; end if;
+  insert into app_config (key, value) values ('student_code', v_code)
+    on conflict (key) do update set value = excluded.value;
+  delete from access_grants where role = 'eleve';
+end $$;
+
+-- Change le code prof : les autres appareils prof sont déconnectés, celui-ci reste connecté.
+create or replace function host_set_prof_secret(p_secret text, p_new text) returns void
+language plpgsql security definer set search_path = public as $$
+declare v_new text := trim(coalesce(p_new, ''));
+begin
+  perform _check_prof(p_secret);
+  if length(v_new) < 12 then raise exception 'Le code prof doit faire au moins 12 caractères'; end if;
+  if v_new = 'MON-CODE-PROF' then raise exception 'Choisis un autre code'; end if;
+  if lower(v_new) = lower(coalesce(_secret('eleve'), '')) then raise exception 'Le code prof doit être différent du code élève'; end if;
+  delete from access_grants where role = 'prof' and user_id <> auth.uid();
+  update app_config set value = v_new where key = 'prof_secret';
+  update access_grants set fp = _fp('prof', v_new) where user_id = auth.uid();
+end $$;
+
+-- ── Portail Netlify : vérification serveur à serveur (clé = gate_key) ──
+create or replace function gate_login(p_key text, p_role text, p_code text, p_client text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_key is distinct from (select value from app_config where key = 'gate_key') then
+    return jsonb_build_object('ok', false);
+  end if;
+  return _try_code(p_role, p_code, 'ip:' || left(coalesce(nullif(p_client, ''), '?'), 64));
+end $$;
+
+create or replace function gate_versions(p_key text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+begin
+  if p_key is distinct from (select value from app_config where key = 'gate_key') then return null; end if;
+  return jsonb_build_object('prof', _fp('prof', _secret('prof')), 'eleve', _fp('eleve', _secret('eleve')));
+end $$;
+
+-- Les fonctions internes ne sont jamais appelables depuis le site.
+revoke execute on function _secret(text), _norm(text, text), _fp(text, text), _who(),
+  _try_code(text, text, text), _check_prof(text) from public, anon, authenticated;
+-- Le portail (clé anonyme) appelle gate_*, protégées par la clé serveur ; le site appelle les autres.
+
+-- ── 3. Sécurité : lecture réservée aux sessions autorisées, écriture uniquement par les fonctions ──
+alter table quizzes      enable row level security;
 alter table roster       enable row level security;   -- illisible : les codes restent secrets
 alter table live_games   enable row level security;
 alter table live_players enable row level security;
@@ -93,9 +331,12 @@ alter table live_answers enable row level security;
 drop policy if exists lecture_games   on live_games;
 drop policy if exists lecture_players on live_players;
 drop policy if exists lecture_answers on live_answers;
-create policy lecture_games   on live_games   for select using (true);
-create policy lecture_players on live_players for select using (true);
-create policy lecture_answers on live_answers for select using (true);
+create policy lecture_games   on live_games   for select to authenticated using (is_member());
+create policy lecture_players on live_players for select to authenticated using (is_member());
+create policy lecture_answers on live_answers for select to authenticated using (is_member());
+revoke all on live_games, live_players, live_answers, quizzes from anon;
+revoke insert, update, delete, truncate on live_games, live_players, live_answers from authenticated;
+revoke all on quizzes from authenticated;
 
 -- ── 4. Vues : classement d'une partie + championnat ──────────────
 create or replace view live_totals as
@@ -103,6 +344,7 @@ create or replace view live_totals as
          coalesce(sum(a.points), 0)::int as total,
          count(*) filter (where a.correct)::int as bonnes
   from live_players p left join live_answers a on a.player_id = p.id
+  where is_member()
   group by p.game_id, p.id, p.nom, p.roster_id;
 
 create or replace view championnat as
@@ -110,9 +352,10 @@ create or replace view championnat as
   from live_totals t
   join live_games g on g.id = t.game_id
   join roster r on r.id = t.roster_id
-  where g.mode = 'competition' and g.status = 'finished';
+  where g.mode = 'competition' and g.status = 'finished' and is_member();
 
-grant select on live_totals, championnat to anon, authenticated;
+revoke all on live_totals, championnat from anon;
+grant select on live_totals, championnat to authenticated;
 
 -- ── 5. Fonctions prof (protégées par le code prof) ───────────────
 create or replace function host_roster_list(p_secret text) returns setof roster
@@ -198,6 +441,7 @@ returns table (player_id uuid, game_id uuid, nom text, mode text)
 language plpgsql security definer set search_path = public as $$
 declare g live_games; r roster; p live_players; v_nom text; v_n int := 1;
 begin
+  if not is_member() then raise exception 'Accès refusé'; end if;
   select * into g from live_games where pin = trim(p_pin) and status <> 'finished';
   if not found then raise exception 'Code de partie introuvable'; end if;
 
@@ -207,7 +451,9 @@ begin
     if g.classe is not null and r.classe <> g.classe then raise exception 'Ce code n''est pas de la classe de cette partie'; end if;
     select * into p from live_players where live_players.game_id = g.id and roster_id = r.id;
     if not found then
-      insert into live_players (game_id, roster_id, nom) values (g.id, r.id, r.nom) returning * into p;
+      insert into live_players (game_id, roster_id, nom, owner) values (g.id, r.id, r.nom, auth.uid()) returning * into p;
+    else
+      update live_players set owner = auth.uid() where id = p.id;
     end if;
   else
     if g.mode = 'competition' then raise exception 'Code personnel obligatoire pour une compétition'; end if;
@@ -216,7 +462,7 @@ begin
     while exists (select 1 from live_players lp where lp.game_id = g.id and lp.nom = v_nom) loop
       v_n := v_n + 1; v_nom := left(trim(p_nom), 17) || v_n;
     end loop;
-    insert into live_players (game_id, nom) values (g.id, v_nom) returning * into p;
+    insert into live_players (game_id, nom, owner) values (g.id, v_nom, auth.uid()) returning * into p;
   end if;
   return query select p.id, g.id, p.nom, g.mode;
 end $$;
@@ -227,7 +473,8 @@ create or replace function submit_answer(p_player uuid, p_q int, p_choice int, p
 returns void language plpgsql security definer set search_path = public as $$
 declare g live_games; v_game uuid;
 begin
-  select live_players.game_id into v_game from live_players where id = p_player;
+  if not is_member() then raise exception 'Accès refusé'; end if;
+  select live_players.game_id into v_game from live_players where id = p_player and owner = auth.uid();
   select * into g from live_games where id = v_game;
   if not found or g.status <> 'question' or g.q_index <> p_q then return; end if;  -- trop tard : ignoré
   insert into live_answers (game_id, player_id, q_index, choice, ms, x, y, value)
@@ -260,18 +507,21 @@ create or replace function host_quiz_delete(p_secret text, p_id uuid) returns vo
 language plpgsql security definer set search_path = public as $$
 begin perform _check_prof(p_secret); delete from quizzes where id = p_id; end $$;
 
--- ── 6 ter. Stockage des plans, images et modèles 3D (bucket public « quiz-media ») ──
+-- ── 6 ter. Stockage des plans, images et modèles 3D (bucket PRIVÉ « quiz-media ») ──
+-- Lecture : sessions autorisées (liens signés temporaires). Envoi : prof uniquement.
 do $$ begin
   if exists (select 1 from information_schema.schemata where schema_name = 'storage') then
     insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-      values ('quiz-media', 'quiz-media', true, 26214400,
+      values ('quiz-media', 'quiz-media', false, 26214400,
               array['image/png','image/jpeg','image/webp','model/gltf-binary','application/octet-stream'])
-      on conflict (id) do update set public = true, file_size_limit = 26214400,
+      on conflict (id) do update set public = false, file_size_limit = 26214400,
         allowed_mime_types = array['image/png','image/jpeg','image/webp','model/gltf-binary','application/octet-stream'];
     drop policy if exists quiz_media_lecture on storage.objects;
     drop policy if exists quiz_media_envoi on storage.objects;
-    create policy quiz_media_lecture on storage.objects for select using (bucket_id = 'quiz-media');
-    create policy quiz_media_envoi on storage.objects for insert with check (bucket_id = 'quiz-media');
+    create policy quiz_media_lecture on storage.objects for select to authenticated
+      using (bucket_id = 'quiz-media' and is_member());
+    create policy quiz_media_envoi on storage.objects for insert to authenticated
+      with check (bucket_id = 'quiz-media' and is_prof());
   end if;
 end $$;
 
@@ -314,7 +564,8 @@ create or replace function submit_tug_answer(p_player uuid, p_q int, p_choice in
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare g live_games; v_game uuid; v_spec jsonb; v_type text; v_ok boolean;
 begin
-  select game_id into v_game from live_players where id = p_player;
+  if not is_member() then raise exception 'Accès refusé'; end if;
+  select game_id into v_game from live_players where id = p_player and owner = auth.uid();
   select * into g from live_games where id = v_game;
   if not found or g.mode <> 'tug' or g.status <> 'question' then return null; end if;
   if exists (select 1 from live_answers where player_id = p_player and q_index = p_q) then return null; end if;
@@ -337,3 +588,16 @@ begin
 end $$;
 
 -- join_game : pseudo autorisé aussi pour le Tug of War (déjà vrai : seule la compétition exige le code)
+
+-- ── 8. Fin des comptes par e-mail : l'ancienne table « profiles » n'est plus accessible depuis le site ──
+-- (tes données restent dans la base ; la progression vit maintenant dans la liste de classe, par code personnel)
+do $$ declare pol record; begin
+  if to_regclass('public.profiles') is not null then
+    execute 'alter table public.profiles enable row level security';
+    for pol in select policyname from pg_policies where schemaname = 'public' and tablename = 'profiles' loop
+      execute format('drop policy %I on public.profiles', pol.policyname);
+    end loop;
+    execute 'revoke all on public.profiles from anon, authenticated';
+  end if;
+end $$;
+revoke all on live_secrets from anon, authenticated;

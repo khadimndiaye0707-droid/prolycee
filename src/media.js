@@ -1,14 +1,47 @@
 // ── Médias des quiz : envoi vers Supabase Storage, images/PDF → image légère, IFC → GLB (3D) ──
+import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 
 const BUCKET = "quiz-media";
 const slug = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "fichier";
 
+// Le bucket est privé : on garde une référence « quiz-media:chemin » et on obtient un lien signé temporaire à l'affichage.
 export async function uploadMedia(blob, name, contentType) {
   const path = `${new Date().toISOString().slice(0, 10)}/${Math.random().toString(36).slice(2, 8)}-${slug(name)}`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType, upsert: false });
   if (error) throw new Error(error.message.includes("not found") ? "Espace de stockage introuvable : relance le script SQL dans Supabase." : error.message);
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  return `${REF}${path}`;
+}
+
+const REF = "quiz-media:";
+const OLD_URL = /\/storage\/v1\/object\/(?:public|sign|authenticated)\/quiz-media\/([^?#]+)/;   // anciens quiz : lien public
+export function mediaPath(url) {
+  if (!url) return null;
+  if (url.startsWith(REF)) return url.slice(REF.length);
+  const m = OLD_URL.exec(url);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+const signed = new Map();   // chemin → { url, exp }
+export async function signedMediaUrl(url) {
+  const path = mediaPath(url);
+  if (!path) return url;                                       // lien externe : inchangé
+  const hit = signed.get(path);
+  if (hit && hit.exp > Date.now()) return hit.url;
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600);
+  if (error) throw new Error(error.message);
+  signed.set(path, { url: data.signedUrl, exp: Date.now() + 50 * 60_000 });
+  return data.signedUrl;
+}
+// null tant que le lien n'est pas prêt
+export function useMediaUrl(url) {
+  const [res, setRes] = useState({ for: url, url: mediaPath(url) ? null : url });
+  useEffect(() => {
+    let off = false;
+    if (!mediaPath(url)) return;
+    signedMediaUrl(url).then((u) => !off && setRes({ for: url, url: u })).catch(() => !off && setRes({ for: url, url: "" }));
+    return () => { off = true; };
+  }, [url]);
+  return res.for === url ? res.url : (mediaPath(url) ? null : url);
 }
 
 function canvasToBlob(canvas, type = "image/webp", quality = 0.9) {

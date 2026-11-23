@@ -2,6 +2,7 @@
 //    tableau BIM, vue 3D, import JSON (ChatGPT). Utilisées en solo, en live (prof + élève).
 import { useState, useRef, useEffect, lazy, Suspense } from "react";
 import { COLORS, LETTRES } from "./quizLogic";
+import { useMediaUrl } from "./media";
 
 const Model3D = lazy(() => import("./Model3D"));
 
@@ -97,13 +98,16 @@ export function ZoomImage({ src, alt = "Plan", onPick, marker, rect, dots, maxVh
 }
 
 export function Media({ media, onPick, marker, rect, dots, maxVh }) {
+  const url = useMediaUrl(media?.url);
   if (!media?.url) return null;
+  if (url === null) return <div className="model3d model3d-loading" role="status">⏳ Chargement…</div>;
+  if (url === "") return <div className="alert" role="alert">Image indisponible (accès expiré ?).</div>;
   if (media.kind === "model") {
     return <Suspense fallback={<div className="model3d model3d-loading" role="status">⏳ Chargement de la maquette 3D…</div>}>
-      <Model3D url={media.url} />
+      <Model3D url={url} />
     </Suspense>;
   }
-  return <ZoomImage src={media.url} onPick={onPick} marker={marker} rect={rect} dots={dots} maxVh={maxVh} />;
+  return <ZoomImage src={url} onPick={onPick} marker={marker} rect={rect} dots={dots} maxVh={maxVh} />;
 }
 
 export function DataTable({ donnees }) {
@@ -160,7 +164,8 @@ export function QuestionView({ q, onAnswer, locked, reveal }) {
 // ════════════════════════════════════════════════════════════════
 //  Prof : dessiner la zone correcte sur le plan
 // ════════════════════════════════════════════════════════════════
-export function ZoneEditor({ src, zone, onChange }) {
+export function ZoneEditor({ src: rawSrc, zone, onChange }) {
+  const src = useMediaUrl(rawSrc) || "";
   const el = useRef(null);
   const [ar, setAr] = useState(1.4);
   const [drag, setDrag] = useState(null);

@@ -3,7 +3,8 @@ import { supabase } from "./supabase";
 import { LiveHost, LiveJoin, Roster, LiveChampionship } from "./Live";
 import { QuestionView } from "./QuizParts";
 import { QuestionEditor, ImportPanel, LibraryLogin } from "./QuizEditor";
-import { useLibrary } from "./hooks";
+import { useLibrary, useSecret } from "./hooks";
+import { bootAccess, leave } from "./access";
 import { emptyQuestion, answerSpec, isCorrectSolo, validateQuestion } from "./quizLogic";
 
 // ── XP SYSTEM ────────────────────────────────────────────────
@@ -194,57 +195,10 @@ function LevelUpModal({level,onClose}){
   </div>;
 }
 
-// ── LOGIN avec Supabase Auth ──────────────────────────────────
-function Login({onLogin}){
-  const [tab,setTab]=useState("prof");
-  const [authMode,setAuthMode]=useState("connexion"); // connexion | inscription
-  const [email,setEmail]=useState("");
-  const [password,setPassword]=useState("");
-  const [nom,setNom]=useState("");
-  const [niveau,setNiveau]=useState("seconde");
-  const classe = niveau;
-  const [loading,setLoading]=useState(false);
-  const [error,setError]=useState("");
-
-  const handleProfLogin=()=>{
-    onLogin({role:"prof",name:"M. Khadim"});
-  };
-
-  const handleEleveConnexion=async()=>{
-    if(!email||!password){setError("Remplis tous les champs");return;}
-    setLoading(true);setError("");
-    try{
-      const {data,error:err}=await supabase.auth.signInWithPassword({email,password});
-      if(err)throw err;
-      const {data:profile}=await supabase.from("profiles").select("*").eq("id",data.user.id).single();
-      if(profile){
-        onLogin({role:"eleve",name:profile.nom,classe:profile.classe,xp:profile.xp||0,id:data.user.id});
-      }else{
-        setError("Profil introuvable. Crée un compte d'abord.");
-      }
-    }catch(e){
-      setError(e.message==="Invalid login credentials"?"Email ou mot de passe incorrect":e.message);
-    }
-    setLoading(false);
-  };
-
-  const handleEleveInscription=async()=>{
-    if(!email||!password||!nom){setError("Remplis tous les champs");return;}
-    if(password.length<6){setError("Mot de passe : 6 caractères minimum");return;}
-    setLoading(true);setError("");
-    try{
-      const {data,error:err}=await supabase.auth.signUp({email,password});
-      if(err)throw err;
-      const {error:profileErr}=await supabase.from("profiles").insert({id:data.user.id,nom:nom.trim(),classe,xp:0});
-      if(profileErr)throw profileErr;
-      onLogin({role:"eleve",name:nom.trim(),classe,xp:0,id:data.user.id});
-    }catch(e){
-      if(e.message.includes("already registered"))setError("Cet email est déjà utilisé. Connecte-toi !");
-      else setError(e.message);
-    }
-    setLoading(false);
-  };
-
+// ── ACCÈS : écrans d'attente, d'identification de l'élève, et d'accès refusé ──
+// La connexion par code se fait sur le portail (avant le site). Ici : identité de l'élève (code personnel
+// pour retrouver sa progression, ou prénom + classe) ; les droits sont vérifiés par Supabase.
+function AccessScreen({children}){
   return <div className="login">
     <main className="login-card">
       <div className="login-brand">
@@ -252,83 +206,78 @@ function Login({onLogin}){
         <h1 className="login-title">Pro<span>Lycée</span></h1>
         <div className="overline" style={{letterSpacing:"0.16em",marginTop:"0.1rem"}}>Plateforme pédagogique</div>
       </div>
-
-      {/* Tabs Prof / Élève */}
-      <div className="seg" role="group" aria-label="Type de compte">
-        {["prof","eleve"].map(t=>(
-          <button type="button" key={t} aria-pressed={tab===t} onClick={()=>{setTab(t);setError("");}}>
-            {t==="prof"?"👨‍🏫 Professeur":"👨‍🎓 Élève"}
-          </button>
-        ))}
-      </div>
-
-      {tab==="prof"?(
-        <form onSubmit={e=>{e.preventDefault();handleProfLogin();}}>
-          <div className="form-row">
-            <Label htmlFor="prof-identifiant">Identifiant</Label>
-            <input id="prof-identifiant" className="field" defaultValue="prof.khadim" readOnly/>
-          </div>
-          <div className="form-row">
-            <Label htmlFor="prof-mdp">Mot de passe</Label>
-            <input id="prof-mdp" type="password" className="field" defaultValue="1234" readOnly/>
-          </div>
-          <button type="submit" className="btn btn-primary btn-lg btn-block">Se connecter →</button>
-        </form>
-      ):(
-        <form noValidate onSubmit={e=>{e.preventDefault();(authMode==="connexion"?handleEleveConnexion:handleEleveInscription)();}}>
-          {/* Connexion / Inscription tabs */}
-          <div className="toggle-row" role="group" aria-label="Connexion ou inscription">
-            {["connexion","inscription"].map(m=>(
-              <button type="button" key={m} aria-pressed={authMode===m} onClick={()=>{setAuthMode(m);setError("");}}>
-                {m==="connexion"?"🔑 Se connecter":"✨ Créer un compte"}
-              </button>
-            ))}
-          </div>
-
-          {authMode==="inscription"&&(
-            <div className="form-row">
-              <Label htmlFor="eleve-prenom">Ton prénom</Label>
-              <input id="eleve-prenom" className="field" placeholder="Ex: Amara" autoComplete="given-name" value={nom} onChange={e=>setNom(e.target.value)}/>
-            </div>
-          )}
-
-          <div className="form-row">
-            <Label htmlFor="eleve-email">Email</Label>
-            <input id="eleve-email" type="email" className="field" placeholder="ton.email@exemple.com" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)}/>
-          </div>
-
-          <div className="form-row">
-            <Label htmlFor="eleve-mdp">Mot de passe</Label>
-            <input id="eleve-mdp" type="password" className="field" placeholder="6 caractères minimum" autoComplete={authMode==="connexion"?"current-password":"new-password"} value={password} onChange={e=>setPassword(e.target.value)}/>
-          </div>
-
-          {authMode==="inscription"&&(<>
-            <div className="form-row">
-              <Label htmlFor="eleve-classe">Ta classe</Label>
-              <select id="eleve-classe" className="field" value={niveau} onChange={e=>setNiveau(e.target.value)}>
-                <option value="seconde">🏛️ Seconde</option>
-                <option value="premiere">🏛️ 1ère TBAA</option>
-                <option value="terminale">🏛️ Terminale TBAA</option>
-              </select>
-            </div>
-          </>)}
-
-          {error&&<div className="alert" role="alert">{error}</div>}
-
-          <button type="submit" disabled={loading} className="btn btn-primary btn-lg btn-block">
-            {loading?"⏳ Chargement...":(authMode==="connexion"?"Se connecter →":"Créer mon compte →")}
-          </button>
-
-          <div className="login-foot">
-            {authMode==="connexion"?"Pas encore de compte ?":"Tu as déjà un compte ?"}
-            <button type="button" className="link-btn" onClick={()=>{setAuthMode(authMode==="connexion"?"inscription":"connexion");setError("");}}>
-              {authMode==="connexion"?"Créer un compte":"Se connecter"}
-            </button>
-          </div>
-        </form>
-      )}
+      {children}
     </main>
   </div>;
+}
+
+function AccessDenied({boot}){
+  const retry=async()=>{await leave();};
+  return <AccessScreen>
+    {boot.state==="error"
+      ?<div className="alert" role="alert">{boot.message||"Connexion impossible pour le moment."}</div>
+      :<div className="alert" role="alert">{boot.locked?"Trop d'essais. Réessaie dans 10 minutes.":"Ton accès a expiré ou le code a changé. Entre le nouveau code."}</div>}
+    <button type="button" className="btn btn-primary btn-lg btn-block" style={{marginTop:"1rem"}} onClick={retry}>Se reconnecter →</button>
+  </AccessScreen>;
+}
+
+function Identify({onDone}){
+  const [mode,setMode]=useState("perso"); // perso | invite
+  const [perso,setPerso]=useState("");
+  const [nom,setNom]=useState("");
+  const [classe,setClasse]=useState("seconde");
+  const [loading,setLoading]=useState(false);
+  const [error,setError]=useState("");
+
+  const submit=async()=>{
+    setLoading(true);setError("");
+    const {data,error:err}=await supabase.rpc("set_identity",mode==="perso"?{p_perso:perso,p_nom:"",p_classe:""}:{p_perso:"",p_nom:nom,p_classe:classe});
+    setLoading(false);
+    if(err){setError(err.message);return;}
+    if(!data?.ok){setError(data?.error||"Identification impossible");return;}
+    onDone(data);
+  };
+
+  return <AccessScreen>
+    <div className="seg" role="group" aria-label="Identification">
+      {[["perso","🔑 J'ai mon code perso"],["invite","👤 Je n'ai pas de code"]].map(([m,l])=>(
+        <button type="button" key={m} aria-pressed={mode===m} onClick={()=>{setMode(m);setError("");}}>{l}</button>
+      ))}
+    </div>
+    <form noValidate onSubmit={e=>{e.preventDefault();submit();}}>
+      {mode==="perso"?(
+        <div className="form-row">
+          <Label htmlFor="id-perso">Ton code personnel</Label>
+          <input id="id-perso" className="field" autoComplete="off" autoCapitalize="characters" spellCheck="false" maxLength={8} placeholder="4 caractères donnés par ton prof" value={perso} onChange={e=>setPerso(e.target.value)}/>
+          <div className="hint">Il permet de retrouver ta progression (XP) sur tous tes appareils.</div>
+        </div>
+      ):(<>
+        <div className="form-row">
+          <Label htmlFor="id-nom">Ton prénom</Label>
+          <input id="id-nom" className="field" autoComplete="given-name" placeholder="Ex : Amara" maxLength={20} value={nom} onChange={e=>setNom(e.target.value)}/>
+        </div>
+        <div className="form-row">
+          <Label htmlFor="id-classe">Ta classe</Label>
+          <select id="id-classe" className="field" value={classe} onChange={e=>setClasse(e.target.value)}>
+            <option value="seconde">🏛️ Seconde</option>
+            <option value="premiere">🏛️ 1ère TBAA</option>
+            <option value="terminale">🏛️ Terminale TBAA</option>
+          </select>
+          <div className="hint">Sans code personnel, ta progression n'est pas sauvegardée.</div>
+        </div>
+      </>)}
+      {error&&<div className="alert" role="alert">{error}</div>}
+      <button type="submit" disabled={loading||(mode==="perso"?!perso.trim():!nom.trim())} className="btn btn-primary btn-lg btn-block">{loading?"⏳ Chargement...":"Continuer →"}</button>
+    </form>
+    <div className="login-foot"><button type="button" className="link-btn" onClick={()=>leave()}>Changer de code d'accès</button></div>
+  </AccessScreen>;
+}
+
+function userFrom(a){
+  if(!a) return null;
+  if(a.role==="prof") return {role:"prof",name:"M. Khadim"};
+  if(!a.identified) return null;
+  return {role:"eleve",name:a.nom,classe:a.classe,xp:a.xp||0,roster:!!a.roster};
 }
 
 // ── SIDEBAR ───────────────────────────────────────────────────
@@ -605,21 +554,22 @@ function Notes(){
   const [dbProfiles,setDbProfiles]=useState([]);
   const [loading,setLoading]=useState(true);
 
+  const [secret]=useSecret();
   useEffect(()=>{
     const loadProfiles=async()=>{
-      const {data}=await supabase.from("profiles").select("*").order("xp",{ascending:false});
-      if(data&&data.length>0) setDbProfiles(data);
+      const {data}=await supabase.rpc("host_roster_list",{p_secret:secret.trim()});
+      if(data&&data.length>0) setDbProfiles([...data].sort((a,b)=>(b.xp||0)-(a.xp||0)));
       setLoading(false);
     };
     loadProfiles();
-  },[]);
+  },[secret]);
 
   const students=dbProfiles.length>0?dbProfiles:STUDENTS;
   const filtered=filter==="all"?students:students.filter(st=>(st.classe||"").startsWith(filter));
   const headers=["Élève","Classe","XP","Niveau",dbProfiles.length===0?"Seq 1":"",dbProfiles.length===0?"Moyenne":""].filter(Boolean);
 
   return <div>
-    <PageHeader icon="📊" title="Notes & Suivi" subtitle={dbProfiles.length>0?`${dbProfiles.length} élèves inscrits en temps réel`:"Données de démonstration"}/>
+    <PageHeader icon="📊" title="Notes & Suivi" subtitle={dbProfiles.length>0?`${dbProfiles.length} élèves de la liste de classe`:"Données de démonstration"}/>
     <div className="chip-row" role="group" aria-label="Filtrer par classe" style={{marginBottom:"1.2rem"}}>
       {[["all","Tous","#8c2f39"],["seconde","🏛️ Seconde","#0e7490"],["premiere","📐 1ère TBAA","#6d28d9"],["terminale","🏗️ Terminale TBAA","#a16207"]].map(([f,label,col])=>(
         <Chip key={f} active={filter===f} color={col} onClick={()=>setFilter(f)}>{label}</Chip>
@@ -1214,13 +1164,21 @@ function Moodle(){
 
 // ── APP SHELL ─────────────────────────────────────────────────
 export default function App(){
-  // Page élève du quiz live : accessible sans connexion
+  const [boot,setBoot]=useState({state:"loading"});
+  useEffect(()=>{
+    let off=false;
+    bootAccess().then(r=>{if(!off)setBoot(r);}).catch(e=>{if(!off)setBoot({state:"error",message:e.message});});
+    return()=>{off=true;};
+  },[]);
+  if(boot.state==="loading") return <AccessScreen><p role="status" style={{textAlign:"center",color:"#5b6472"}}>⏳ Vérification de l'accès…</p></AccessScreen>;
+  if(boot.state!=="ok") return <AccessDenied boot={boot}/>;
+  // Page élève du quiz live : même accès par code que le reste du site
   if(window.location.pathname.startsWith("/jouer")) return <LiveJoin/>;
-  return <AppShell/>;
+  return <AppShell access={boot.access}/>;
 }
 
-function AppShell(){
-  const [user,setUser]=useState(null);
+function AppShell({access}){
+  const [user,setUser]=useState(()=>userFrom(access));
   const [active,setActive]=useState("dashboard");
   const [toasts,setToasts]=useState([]);
   const [levelUp,setLevelUp]=useState(null);
@@ -1245,12 +1203,6 @@ function AppShell(){
   // Changement de page : on repart du haut
   useEffect(()=>{window.scrollTo(0,0);},[active]);
 
-  // Sync XP to Supabase
-  const syncXP=async(userId,newXP)=>{
-    if(!userId) return;
-    await supabase.from("profiles").update({xp:newXP}).eq("id",userId);
-  };
-
   const addXP=async(gain,label)=>{
     if(!user||user.role==="prof") return;
     const oldXP=user.xp||0;
@@ -1264,18 +1216,15 @@ function AppShell(){
       const lvlInfo=getLevelInfo(newXP).current;
       setTimeout(()=>setLevelUp(lvlInfo),600);
     }
-    // Sync to database
-    if(user.id) await syncXP(user.id,newXP);
+    // Sauvegarde côté serveur (élève identifié par son code personnel)
+    if(user.roster) await supabase.rpc("add_xp",{p_gain:gain});
   };
 
   const removeToast=(id)=>setToasts(prev=>prev.filter(t=>t.id!==id));
 
-  const handleLogout=async()=>{
-    await supabase.auth.signOut();
-    setUser(null);
-  };
+  const handleLogout=()=>{ leave(); };
 
-  if(!user) return <Login onLogin={u=>{ setUser(u); setActive("dashboard"); }}/>;
+  if(!user) return <Identify onDone={a=>{ setUser(userFrom(a)); setActive("dashboard"); }}/>;
 
   const panels={
     dashboard:<Dashboard user={user} onAddXP={addXP}/>,
