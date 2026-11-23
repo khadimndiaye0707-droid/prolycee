@@ -3,7 +3,7 @@ import { supabase } from "./supabase";
 import { LiveHost, LiveJoin, Roster, LiveChampionship } from "./Live";
 import { QuestionView } from "./QuizParts";
 import { QuestionEditor, ImportPanel, LibraryLogin } from "./QuizEditor";
-import { useLibrary } from "./hooks";
+import { useLibrary, useSecret } from "./hooks";
 import { emptyQuestion, answerSpec, isCorrectSolo, validateQuestion } from "./quizLogic";
 
 // ── XP SYSTEM ────────────────────────────────────────────────
@@ -206,8 +206,23 @@ function Login({onLogin}){
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
 
-  const handleProfLogin=()=>{
-    onLogin({role:"prof",name:"M. Khadim"});
+  const [,saveSecret]=useSecret();
+  const [codeProf,setCodeProf]=useState("");
+
+  // Le code prof est vérifié par Supabase (fonction check_prof) : rien n'est écrit dans le site.
+  const handleProfLogin=async()=>{
+    const code=codeProf.trim();
+    if(!code){setError("Entre ton code prof");return;}
+    setLoading(true);setError("");
+    try{
+      const {error:err}=await supabase.rpc("check_prof",{p_secret:code});
+      if(err)throw err;
+      saveSecret(code);
+      onLogin({role:"prof",name:"M. Khadim"});
+    }catch(e){
+      setError(/incorrect/i.test(e.message||"")?"Code prof incorrect":"Connexion impossible, réessaie");
+    }
+    setLoading(false);
   };
 
   const handleEleveConnexion=async()=>{
@@ -265,14 +280,11 @@ function Login({onLogin}){
       {tab==="prof"?(
         <form onSubmit={e=>{e.preventDefault();handleProfLogin();}}>
           <div className="form-row">
-            <Label htmlFor="prof-identifiant">Identifiant</Label>
-            <input id="prof-identifiant" className="field" defaultValue="prof.khadim" readOnly/>
+            <Label htmlFor="prof-code">Code prof</Label>
+            <input id="prof-code" type="password" className="field" autoComplete="current-password" placeholder="Ton code secret" value={codeProf} onChange={e=>setCodeProf(e.target.value)}/>
           </div>
-          <div className="form-row">
-            <Label htmlFor="prof-mdp">Mot de passe</Label>
-            <input id="prof-mdp" type="password" className="field" defaultValue="1234" readOnly/>
-          </div>
-          <button type="submit" className="btn btn-primary btn-lg btn-block">Se connecter →</button>
+          {error&&<div className="alert" role="alert">{error}</div>}
+          <button type="submit" disabled={loading} className="btn btn-primary btn-lg btn-block">{loading?"⏳ Vérification...":"Se connecter →"}</button>
         </form>
       ):(
         <form noValidate onSubmit={e=>{e.preventDefault();(authMode==="connexion"?handleEleveConnexion:handleEleveInscription)();}}>
